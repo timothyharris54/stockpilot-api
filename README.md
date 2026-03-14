@@ -1,0 +1,2 @@
+# stockpilot-api
+StockPilot Backend

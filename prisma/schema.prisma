@@ -1,0 +1,175 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProductStatus {
+  active
+  inactive
+  archived
+}
+
+enum OrderStatus {
+  pending
+  authorized
+  paid
+  processing
+  completed
+  cancelled
+  refunded
+  partially_refunded
+  on_hold
+}
+
+enum InventoryEventType {
+  opening_balance
+  sale
+  sale_reversal
+  receipt
+  adjustment_gain
+  adjustment_loss
+  return_resellable
+  sync_correction
+}
+
+enum ReferenceType {
+  order
+  receipt
+  purchase_order
+  adjustment
+  return_ref
+  system
+}
+
+model Account {
+  id          BigInt   @id @default(autoincrement())
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  products    Product[]
+  orders      Order[]
+  orderLines  OrderLine[]
+  ledger      InventoryLedger[]
+  balances    InventoryBalance[]
+}
+
+model User {
+  id           BigInt   @id @default(autoincrement())
+  accountId    BigInt
+  email        String
+  fullName     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, email])
+}
+
+model Product {
+  id              BigInt        @id @default(autoincrement())
+  accountId       BigInt
+  sku             String
+  name            String
+  status          ProductStatus @default(active)
+  isVariant       Boolean       @default(false)
+  parentProductId BigInt?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  account         Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  parentProduct   Product?      @relation("ProductParent", fields: [parentProductId], references: [id])
+  variants        Product[]     @relation("ProductParent")
+
+  orderLines      OrderLine[]
+  ledgerEntries   InventoryLedger[]
+  balances        InventoryBalance[]
+
+  @@unique([accountId, sku])
+}
+
+model Order {
+  id             BigInt      @id @default(autoincrement())
+  accountId      BigInt
+  channel        String
+  channelOrderId String
+  status         OrderStatus
+  orderedAt      DateTime
+  customerName   String?
+  customerEmail  String?
+  currencyCode   String?
+  orderTotal     Decimal?    @db.Decimal(12, 2)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  account        Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  orderLines     OrderLine[]
+
+  @@unique([accountId, channel, channelOrderId])
+}
+
+model OrderLine {
+  id            BigInt    @id @default(autoincrement())
+  accountId     BigInt
+  orderId       BigInt
+  productId     BigInt?
+  channelLineId String?
+  sku           String?
+  productName   String?
+  quantity      Decimal   @db.Decimal(12, 2)
+  unitPrice     Decimal?  @db.Decimal(12, 2)
+  lineTotal     Decimal?  @db.Decimal(12, 2)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model InventoryLedger {
+  id               BigInt             @id @default(autoincrement())
+  accountId        BigInt
+  productId        BigInt
+  locationCode     String
+  eventType        InventoryEventType
+  quantityDelta    Decimal            @db.Decimal(12, 2)
+  unitCost         Decimal?           @db.Decimal(12, 4)
+  referenceType    ReferenceType
+  referenceId      BigInt?
+  externalEventKey String
+  occurredAt       DateTime
+  notes            String?
+  createdAt        DateTime           @default(now())
+
+  account          Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product          Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, externalEventKey])
+}
+
+model InventoryBalance {
+  accountId        BigInt
+  productId        BigInt
+  locationCode     String
+  qtyOnHand        Decimal  @default(0) @db.Decimal(12, 2)
+  qtyReserved      Decimal  @default(0) @db.Decimal(12, 2)
+  qtyIncoming      Decimal  @default(0) @db.Decimal(12, 2)
+  qtyAvailable     Decimal  @default(0) @db.Decimal(12, 2)
+  lastCalculatedAt DateTime @default(now())
+
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, productId, locationCode])
+}

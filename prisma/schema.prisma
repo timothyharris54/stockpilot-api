@@ -49,29 +49,39 @@ enum ReferenceType {
 }
 
 model Account {
-  id          BigInt   @id @default(autoincrement())
-  name        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        BigInt   @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users       User[]
-  products    Product[]
-  orders      Order[]
-  orderLines  OrderLine[]
-  ledger      InventoryLedger[]
-  balances    InventoryBalance[]
+  users                  User[]
+  products               Product[]
+  orders                 Order[]
+  orderLines             OrderLine[]
+  ledger                 InventoryLedger[]
+  balances               InventoryBalance[]
+  vendors                Vendor[]
+  vendorProducts         VendorProduct[]
+  purchaseOrders         PurchaseOrder[]
+  purchaseOrderLines     PurchaseOrderLine[]
+  receipts               Receipt[]
+  receiptLines           ReceiptLine[]
+  salesDaily             SalesDaily[]
+  replenishmentRules     ReplenishmentRule[]
+  reorderRecommentations ReorderRecommendation[]
+  planningSettings       PlanningSettings?
 }
 
 model User {
-  id           BigInt   @id @default(autoincrement())
-  accountId    BigInt
-  email        String
-  fullName     String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        BigInt   @id @default(autoincrement())
+  accountId BigInt
+  email     String
+  fullName  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, email])
 }
@@ -87,13 +97,19 @@ model Product {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  account         Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  parentProduct   Product?      @relation("ProductParent", fields: [parentProductId], references: [id])
-  variants        Product[]     @relation("ProductParent")
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  parentProduct Product?  @relation("ProductParent", fields: [parentProductId], references: [id])
+  variants      Product[] @relation("ProductParent")
 
-  orderLines      OrderLine[]
-  ledgerEntries   InventoryLedger[]
-  balances        InventoryBalance[]
+  orderLines             OrderLine[]
+  ledgerEntries          InventoryLedger[]
+  balances               InventoryBalance[]
+  vendorProducts         VendorProduct[]
+  purchaseOrderLines     PurchaseOrderLine[]
+  receiptLines           ReceiptLine[]
+  salesDaily             SalesDaily[]
+  replenishmentRule      ReplenishmentRule?
+  reorderRecommentations ReorderRecommendation[]
 
   @@unique([accountId, sku])
 }
@@ -112,29 +128,29 @@ model Order {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  account        Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  orderLines     OrderLine[]
+  account    Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  orderLines OrderLine[]
 
   @@unique([accountId, channel, channelOrderId])
 }
 
 model OrderLine {
-  id            BigInt    @id @default(autoincrement())
+  id            BigInt   @id @default(autoincrement())
   accountId     BigInt
   orderId       BigInt
   productId     BigInt?
   channelLineId String?
   sku           String?
   productName   String?
-  quantity      Decimal   @db.Decimal(12, 2)
-  unitPrice     Decimal?  @db.Decimal(12, 2)
-  lineTotal     Decimal?  @db.Decimal(12, 2)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  quantity      Decimal  @db.Decimal(12, 2)
+  unitPrice     Decimal? @db.Decimal(12, 2)
+  lineTotal     Decimal? @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product       Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  account Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 }
 
 model InventoryLedger {
@@ -152,8 +168,8 @@ model InventoryLedger {
   notes            String?
   createdAt        DateTime           @default(now())
 
-  account          Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  product          Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@unique([accountId, externalEventKey])
 }
@@ -168,8 +184,214 @@ model InventoryBalance {
   qtyAvailable     Decimal  @default(0) @db.Decimal(12, 2)
   lastCalculatedAt DateTime @default(now())
 
-  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@id([accountId, productId, locationCode])
+}
+
+enum PurchaseOrderStatus {
+  draft
+  submitted
+  partially_received
+  received
+  cancelled
+}
+
+model Vendor {
+  id                  BigInt   @id @default(autoincrement())
+  accountId           BigInt
+  name                String
+  contactName         String?
+  contactEmail        String?
+  contactPhone        String?
+  defaultLeadTimeDays Int?
+  paymentTerms        String?
+  isActive            Boolean  @default(true)
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  account                Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendorProducts         VendorProduct[]
+  purchaseOrders         PurchaseOrder[]
+  reorderRecommentations ReorderRecommendation[]
+
+  @@unique([accountId, name])
+}
+
+model VendorProduct {
+  id              BigInt   @id @default(autoincrement())
+  accountId       BigInt
+  vendorId        BigInt
+  productId       BigInt
+  vendorSku       String?
+  unitCost        Decimal? @db.Decimal(12, 4)
+  minOrderQty     Decimal  @default(0) @db.Decimal(12, 2)
+  orderMultiple   Decimal  @default(1) @db.Decimal(12, 2)
+  leadTimeDays    Int?
+  isPrimaryVendor Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account            Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendor             Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  purchaseOrderLines PurchaseOrderLine[]
+
+  @@unique([accountId, vendorId, productId])
+}
+
+model PurchaseOrder {
+  id          BigInt              @id @default(autoincrement())
+  accountId   BigInt
+  vendorId    BigInt
+  poNumber    String
+  status      PurchaseOrderStatus @default(draft)
+  orderedAt   DateTime?
+  expectedAt  DateTime?
+  submittedAt DateTime?
+  cancelledAt DateTime?
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  account  Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendor   Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  lines    PurchaseOrderLine[]
+  receipts Receipt[]
+
+  @@unique([accountId, poNumber])
+}
+
+model PurchaseOrderLine {
+  id              BigInt   @id @default(autoincrement())
+  accountId       BigInt
+  purchaseOrderId BigInt
+  productId       BigInt
+  vendorProductId BigInt?
+  orderedQty      Decimal  @db.Decimal(12, 2)
+  receivedQty     Decimal  @default(0) @db.Decimal(12, 2)
+  unitCost        Decimal? @db.Decimal(12, 4)
+  lineTotal       Decimal? @db.Decimal(12, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  vendorProduct VendorProduct? @relation(fields: [vendorProductId], references: [id], onDelete: SetNull)
+  receiptLines  ReceiptLine[]
+}
+
+model Receipt {
+  id              BigInt   @id @default(autoincrement())
+  accountId       BigInt
+  purchaseOrderId BigInt
+  locationCode    String
+  receivedAt      DateTime
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  account       Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  lines         ReceiptLine[]
+}
+
+model ReceiptLine {
+  id                  BigInt   @id @default(autoincrement())
+  accountId           BigInt
+  receiptId           BigInt
+  purchaseOrderLineId BigInt
+  productId           BigInt
+  receivedQty         Decimal  @db.Decimal(12, 2)
+  unitCost            Decimal? @db.Decimal(12, 4)
+  createdAt           DateTime @default(now())
+
+  account           Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  receipt           Receipt           @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseOrderLine PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Restrict)
+  product           Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+}
+
+enum RecommendationStatus {
+  open
+  reviewed
+  converted
+  dismissed
+}
+
+model SalesDaily {
+  accountId BigInt
+  productId BigInt
+  salesDate DateTime
+  unitsSold Decimal  @default(0) @db.Decimal(12, 2)
+  revenue   Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, productId, salesDate])
+  @@index([accountId, salesDate])
+  @@index([accountId, productId, salesDate])
+}
+
+model ReplenishmentRule {
+  accountId    BigInt
+  productId    BigInt @unique
+  locationCode String @default("MAIN")
+
+  safetyStock          Decimal @default(0) @db.Decimal(12, 2)
+  targetDaysOfCover    Int     @default(30)
+  overrideLeadTimeDays Int?
+  minReorderQty        Decimal @default(0) @db.Decimal(12, 2)
+  isActive             Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, productId])
+}
+
+model ReorderRecommendation {
+  id                   BigInt               @id @default(autoincrement())
+  accountId            BigInt
+  productId            BigInt
+  vendorId             BigInt?
+  locationCode         String
+  recommendedQty       Decimal              @db.Decimal(12, 2)
+  daysUntilStockout    Decimal?             @db.Decimal(12, 2)
+  reorderPoint         Decimal?             @db.Decimal(12, 2)
+  targetStock          Decimal?             @db.Decimal(12, 2)
+  avgDailySales30      Decimal?             @db.Decimal(12, 4)
+  qtyOnHandSnapshot    Decimal?             @db.Decimal(12, 2)
+  qtyIncomingSnapshot  Decimal?             @db.Decimal(12, 2)
+  qtyAvailableSnapshot Decimal?             @db.Decimal(12, 2)
+  status               RecommendationStatus @default(open)
+  calculatedAt         DateTime             @default(now())
+  createdAt            DateTime             @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vendor  Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+}
+
+model PlanningSettings {
+  id        Int    @id @default(autoincrement())
+  accountId BigInt @unique
+
+  demandOrderStatuses        String[] // e.g. ["FULFILLED", "SHIPPED"]
+  demandDateBasis            String   @default("postedAt") // future: createdAt, fulfilledAt, shippedAt
+  includeNegativeAdjustments Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 }

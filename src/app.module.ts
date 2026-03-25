@@ -7,15 +7,19 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
-
+import { PlanningModule } from './modules/planning/planning.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, 
+  imports: [AuthModule,
+            PrismaModule, 
             ProductsModule, 
             InventoryModule, 
             OrdersModule, 
             VendorsModule, 
-            ProcurementModule],
+            ProcurementModule,
+            PlanningModule
+          ],
   controllers: [AppController],
   providers: [AppService],
 })

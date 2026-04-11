@@ -68,7 +68,7 @@ model Account {
   receiptLines           ReceiptLine[]
   salesDaily             SalesDaily[]
   replenishmentRules     ReplenishmentRule[]
-  reorderRecommentations ReorderRecommendation[]
+  reorderRecommendations ReorderRecommendation[]
   planningSettings       PlanningSettings?
 }
 
@@ -109,9 +109,10 @@ model Product {
   receiptLines           ReceiptLine[]
   salesDaily             SalesDaily[]
   replenishmentRule      ReplenishmentRule?
-  reorderRecommentations ReorderRecommendation[]
+  reorderRecommendations ReorderRecommendation[]
 
   @@unique([accountId, sku])
+
 }
 
 model Order {
@@ -216,7 +217,7 @@ model Vendor {
   account                Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
   vendorProducts         VendorProduct[]
   purchaseOrders         PurchaseOrder[]
-  reorderRecommentations ReorderRecommendation[]
+  reorderRecommendations ReorderRecommendation[]
 
   @@unique([accountId, name])
 }
@@ -236,9 +237,11 @@ model VendorProduct {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  account            Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  vendor             Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  account         Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendor          Vendor                  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  product         Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  recommendations ReorderRecommendation[] @relation("RecommendationVendorProduct")
+
   purchaseOrderLines PurchaseOrderLine[]
 
   @@unique([accountId, vendorId, productId])
@@ -258,10 +261,11 @@ model PurchaseOrder {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  account  Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  vendor   Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  lines    PurchaseOrderLine[]
-  receipts Receipt[]
+  account         Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendor          Vendor                  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  lines           PurchaseOrderLine[]
+  receipts        Receipt[]
+  recommendations ReorderRecommendation[] @relation("RecommendationPurchaseOrder")
 
   @@unique([accountId, poNumber])
 }
@@ -279,11 +283,12 @@ model PurchaseOrderLine {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
-  vendorProduct VendorProduct? @relation(fields: [vendorProductId], references: [id], onDelete: SetNull)
-  receiptLines  ReceiptLine[]
+  account         Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  purchaseOrder   PurchaseOrder           @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product                 @relation(fields: [productId], references: [id], onDelete: Restrict)
+  vendorProduct   VendorProduct?          @relation(fields: [vendorProductId], references: [id], onDelete: SetNull)
+  recommendations ReorderRecommendation[] @relation("RecommendationPurchaseOrderLine")
+  receiptLines    ReceiptLine[]
 }
 
 model Receipt {
@@ -354,57 +359,55 @@ model ReplenishmentRule {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@id([accountId, productId])
-
 }
 
 model ReorderRecommendation {
-  id                   BigInt               @id @default(autoincrement())
-  accountId            BigInt
-  productId            BigInt
-  vendorId             BigInt?
-  vendorProductId      BigInt?
-  purchaseOrderId      BigInt?
-  purchaseOrderLineId  BigInt?
+  id                  BigInt  @id @default(autoincrement())
+  accountId           BigInt
+  productId           BigInt
+  vendorId            BigInt?
+  vendorProductId     BigInt?
+  purchaseOrderId     BigInt?
+  purchaseOrderLineId BigInt?
 
-  locationCode         String
-  
-  recommendedQty       Decimal              @db.Decimal(12, 2)
-  finalQty             Decimal?             @db.Decimal(12, 2)
+  locationCode String
 
-  daysUntilStockout    Decimal?             @db.Decimal(12, 2)
-  reorderPoint         Decimal?             @db.Decimal(12, 2)
-  targetStock          Decimal?             @db.Decimal(12, 2)
-  avgDailySales30      Decimal?             @db.Decimal(12, 4)
-  qtyOnHandSnapshot    Decimal?             @db.Decimal(12, 2)
-  qtyIncomingSnapshot  Decimal?             @db.Decimal(12, 2)
-  qtyAvailableSnapshot Decimal?             @db.Decimal(12, 2)
-  
-  status               RecommendationStatus @default(open)
-  
-  calculatedAt         DateTime             @default(now())
-  reviewedAt           DateTime?
-  convertedAt          DateTime?
-  dismissedAt          DateTime?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  recommendedQty Decimal  @db.Decimal(12, 2)
+  finalQty       Decimal? @db.Decimal(12, 2)
 
-  account              Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  product              Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
-  vendor               Vendor?              @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  vendorProduct        VendorProduct?       @relation(fields: [vendorProductId], references: [id], onDelete: SetNull)
-  purchaseOrder        PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
-  purchaseOrderLine    PurchaseOrderLine?   @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
+  daysUntilStockout    Decimal? @db.Decimal(12, 2)
+  reorderPoint         Decimal? @db.Decimal(12, 2)
+  targetStock          Decimal? @db.Decimal(12, 2)
+  avgDailySales30      Decimal? @db.Decimal(12, 4)
+  qtyOnHandSnapshot    Decimal? @db.Decimal(12, 2)
+  qtyIncomingSnapshot  Decimal? @db.Decimal(12, 2)
+  qtyAvailableSnapshot Decimal? @db.Decimal(12, 2)
+
+  status RecommendationStatus @default(open)
+
+  calculatedAt DateTime  @default(now())
+  reviewedAt   DateTime?
+  convertedAt  DateTime?
+  dismissedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  account           Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vendor            Vendor?            @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  vendorProduct     VendorProduct?     @relation("RecommendationVendorProduct", fields: [vendorProductId], references: [id], onDelete: SetNull)
+  purchaseOrder     PurchaseOrder?     @relation("RecommendationPurchaseOrder", fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  purchaseOrderLine PurchaseOrderLine? @relation("RecommendationPurchaseOrderLine", fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
 
   @@index([accountId, status])
   @@index([accountId, productId, status])
   @@index([accountId, vendorId, status])
   @@index([purchaseOrderId])
-
 }
 
 model PlanningSettings {

@@ -1,6 +1,6 @@
 {
   "name": "stockpilot-api",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "",
   "author": "",
   "private": true,
@@ -84,9 +84,6 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
-    "prisma": {
-      "seed": "tsx prisma/seed.ts"
-    },
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/src/$1"
     }

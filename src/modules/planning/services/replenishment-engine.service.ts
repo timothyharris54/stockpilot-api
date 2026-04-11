@@ -153,10 +153,11 @@ export class ReplenishmentEngineService {
         productId: 'asc',
       },
     });
-
+    console.log('In generateForAccount: '+rules.length);
     const results: Awaited<ReturnType<typeof this.generateForProduct>>[] = [];
 
     for (const rule of rules) {
+      console.log('Rule looping: '+rule.minReorderQty+' | '+rule.productId)
       const result = await this.generateForProduct(
         accountId,
         rule.productId,

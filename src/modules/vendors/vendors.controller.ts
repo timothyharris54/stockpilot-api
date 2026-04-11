@@ -1,29 +1,52 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import { VendorsService } from './vendors.service';
-import { CreateVendorDto } from './dto/create-vendor.dto';
-import { CreateVendorProductDto } from './dto/create-vendor-product.dto';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { VendorsService } from 'src/modules/vendors/vendors.service';
+import { CreateVendorDto } from 'src/modules/vendors/dto/create-vendor.dto';
+import { CreateVendorProductDto } from 'src/modules/vendors/dto/create-vendor-product.dto';
+import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
+import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@Controller()
+@Controller('vendors')
 export class VendorsController {
   constructor(private readonly vendorsService: VendorsService) {}
 
-@Post('vendors')
-    create(@Body() createVendorDto: CreateVendorDto) {
-        return this.vendorsService.create(createVendorDto);
+@UseGuards(JwtAuthGuard)
+@Post('vendor')
+    async create(
+        @CurrentIdentity() identity: RequestIdentity,
+        @Body() createVendorDto: CreateVendorDto
+    ) {
+        return this.vendorsService.create({
+            accountId: BigInt(identity.accountId),
+            createVendorDto,
+        });
     }   
 
-@Get('vendors')
-    findAll() {
-        return this.vendorsService.findAll();
+@UseGuards(JwtAuthGuard)
+@Get('allVendors')
+    findAll(
+        @CurrentIdentity() identity: RequestIdentity,
+    ) {
+        return this.vendorsService.findAll(BigInt(identity.accountId));
     }
 
-@Post('vendor-products')
-    createVendorProduct(@Body() createVendorProductDto: CreateVendorProductDto) {
-        return this.vendorsService.createVendorProduct(createVendorProductDto);
+@UseGuards(JwtAuthGuard)
+@Post('vendor-product')
+    createVendorProduct(
+        @CurrentIdentity() identity: RequestIdentity,
+        @Body() createVendorProductDto: CreateVendorProductDto
+    ) {
+        return this.vendorsService.createVendorProduct({
+            accountId: BigInt(identity.accountId),
+            createVendorProductDto,
+        });
     }
 
+@UseGuards(JwtAuthGuard)
 @Get('vendor-products')
-    findVendorProducts() {
-        return this.vendorsService.findAllVendorProducts();    
+    findVendorProducts(
+        @CurrentIdentity() identity: RequestIdentity,
+    ) {
+        return this.vendorsService.findAllVendorProducts(BigInt(identity.accountId));    
     }
 }

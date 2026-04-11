@@ -6,23 +6,28 @@ import { PlanningSettingsService } from './services/planning-settings.service';
 import { ReplenishmentEngineService } from './services/replenishment-engine.service';
 import { SalesDailyController } from './controllers/sales-daily/sales-daily.controller';
 import { ReplenishmentController } from './controllers/replenishment.controller';
+import { RecommendationsController } from './controllers/recommendations.controller';
+import { RecommendationsService } from './services/recommendations.service';
 
 
 @Module({
   imports: [PrismaModule, InventoryModule],
   controllers: [
     SalesDailyController, 
-    ReplenishmentController
+    ReplenishmentController,
+    RecommendationsController
   ],
   providers: [
     PlanningSettingsService,
     SalesDailyService,
-    ReplenishmentEngineService
+    ReplenishmentEngineService,
+    RecommendationsService
   ],
   exports: [
     PlanningSettingsService, 
     SalesDailyService,
-    ReplenishmentEngineService
+    ReplenishmentEngineService,
+    RecommendationsService
   ]
 })
 

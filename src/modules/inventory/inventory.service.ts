@@ -2,22 +2,26 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Prisma, ReferenceType } from '@prisma/client';
 import { OpeningBalanceDto } from './dto/opening-balance.dto';
-import { getAccountId } from '../../shared/account-context';
-import { get } from 'http';
+
+type InventoryInput = {
+    accountId: bigint,
+    openingBalanceDto: OpeningBalanceDto
+}
 @Injectable()
 export class InventoryService {
     constructor(private readonly prismaService: PrismaService) {
 
     }
 
-    async postOpeningBalance(openingBalanceDto: OpeningBalanceDto) {
+    async postOpeningBalance(input: InventoryInput) {
+        const accountId = input.accountId;
+        const openingBalanceDto = input.openingBalanceDto;
         const productId = BigInt(openingBalanceDto.productId);
         const quantity = new Prisma.Decimal(openingBalanceDto.quantity);
     
         const product = await this.prismaService.product.findUnique({
             where: { 
-                id: productId,
-                accountId: getAccountId()
+                id: productId
              }
         });
 
@@ -27,26 +31,26 @@ export class InventoryService {
 
         const ledgerEntry = await this.prismaService.inventoryLedger.create({
             data: {
-                accountId: getAccountId(), 
+                accountId, 
                 productId: productId,
                 locationCode: openingBalanceDto.locationCode,
                 eventType: 'opening_balance',
                 quantityDelta: quantity,
                 referenceType: 'system',
-                externalEventKey: `opening_balance:${getAccountId()}:${productId}:${openingBalanceDto.locationCode}`,
+                externalEventKey: `opening_balance:${accountId}:${productId}:${openingBalanceDto.locationCode}`,
                 occurredAt: new Date(),
                 notes: openingBalanceDto.notes
             }
         });
-        await this.rebuildBalance(productId, openingBalanceDto.locationCode);
+        await this.rebuildBalance(accountId, productId, openingBalanceDto.locationCode);
         return ledgerEntry;
     }
 
-    async postSaleEvent(orderLineId: bigint, locationCode= 'MAIN') {
+    async postSaleEvent(accountId: bigint, orderLineId: bigint, locationCode= 'MAIN') {
         const orderLine = await this.prismaService.orderLine.findUnique({
             where: { 
                 id: orderLineId,
-                accountId: getAccountId()
+                accountId
              },
             include: { order: true, product: true }
         });
@@ -54,12 +58,12 @@ export class InventoryService {
             throw new NotFoundException(`Order line with ID ${orderLineId} not found`);
         }
         
-        const externalEventKey = `${getAccountId()}:${orderLine.order.channel}:order:${orderLine.order.channelOrderId}:line:${orderLine.id}:sale`;
+        const externalEventKey = `${accountId}:${orderLine.order.channel}:order:${orderLine.order.channelOrderId}:line:${orderLine.id}:sale`;
 
         const existingEntry = await this.prismaService.inventoryLedger.findUnique({
             where: {
                 accountId_externalEventKey: {
-                    accountId: getAccountId(),
+                    accountId,
                     externalEventKey: externalEventKey
                 }
             }
@@ -71,7 +75,7 @@ export class InventoryService {
 
         const ledgerEntry = await this.prismaService.inventoryLedger.create({
             data: {
-                accountId: getAccountId(),
+                accountId,
                 productId: orderLine.productId,
                 locationCode,
                 eventType: 'sale',
@@ -83,16 +87,16 @@ export class InventoryService {
             }
         });
 
-        await this.rebuildBalance(orderLine.productId, locationCode);
+        await this.rebuildBalance(accountId, orderLine.productId, locationCode);
 
         return ledgerEntry;
     }
 
-    async postSaleReversal(orderLineId: bigint, locationCode= 'MAIN') {
+    async postSaleReversal(accountId: bigint, orderLineId: bigint, locationCode= 'MAIN') {
         const orderLine = await this.prismaService.orderLine.findUnique({
             where: { 
                 id: orderLineId,
-                accountId: getAccountId()
+                accountId
              },
             include: { order: true, product: true }
         });
@@ -100,12 +104,12 @@ export class InventoryService {
             throw new NotFoundException(`Order line with ID ${orderLineId} not found`);
         }
         
-        const externalEventKey = `${getAccountId()}:${orderLine.order.channel}:order:${orderLine.order.channelOrderId}:line:${orderLine.id}:sale_reversal`;
+        const externalEventKey = `${accountId}:${orderLine.order.channel}:order:${orderLine.order.channelOrderId}:line:${orderLine.id}:sale_reversal`;
         console.log('Looking for existing ledger entry with key:', externalEventKey);
         const existingEntry = await this.prismaService.inventoryLedger.findUnique({
             where: {
                 accountId_externalEventKey: {
-                    accountId: getAccountId(),
+                    accountId,
                     externalEventKey: externalEventKey
                 }
             }
@@ -117,7 +121,7 @@ export class InventoryService {
 
         const ledgerEntry = await this.prismaService.inventoryLedger.create({
             data: { 
-                accountId: getAccountId(),
+                accountId,
                 productId: orderLine.productId,
                 locationCode,
                 eventType: 'sale_reversal',
@@ -130,15 +134,15 @@ export class InventoryService {
             }
         });
         console.log('Created sale reversal ledger entry:', ledgerEntry);
-        await this.rebuildBalance(orderLine.productId, locationCode);
+        await this.rebuildBalance(orderLineId, orderLine.productId, locationCode);
 
         return ledgerEntry;
     }
 
-    private async rebuildBalance(productId: bigint, locationCode: string) {
+    private async rebuildBalance(accountId: bigint, productId: bigint, locationCode: string) {
         const rows = await this.prismaService.inventoryLedger.findMany({
             where: { 
-                accountId: getAccountId(),
+                accountId,
                 productId, 
                 locationCode 
             }
@@ -156,7 +160,7 @@ export class InventoryService {
         return this.prismaService.inventoryBalance.upsert({
             where: { 
                 accountId_productId_locationCode: {
-                    accountId: getAccountId(),
+                    accountId,
                     productId,
                     locationCode
                 }
@@ -168,7 +172,7 @@ export class InventoryService {
                 lastCalculatedAt: new Date() 
             },
             create: { 
-                accountId: getAccountId(),
+                accountId,
                 productId, 
                 locationCode, 
                 qtyOnHand,
@@ -179,25 +183,26 @@ export class InventoryService {
              }
         });
     }
-    async getBalances() {
+    async getBalances(accountId: bigint) {
         return this.prismaService.inventoryBalance.findMany({
             where: { 
-                accountId: getAccountId() 
+                accountId
             },
             include: { product: true },
             orderBy: [{ locationCode: 'asc' }, { product: { name: 'asc' } }]
             });    
     }
-    async getLedger() {
+    async getLedger(accountId: bigint) {
         return this.prismaService.inventoryLedger.findMany({
             where: { 
-                accountId: getAccountId() 
+                accountId 
             },
             include: { product: true },
             orderBy: { id: 'asc' },
         });
     }
     async postReceiptEvent(
+            accountId: bigint,
             productId: bigint,
             locationCode: string,
             quantity: Prisma.Decimal,
@@ -206,7 +211,6 @@ export class InventoryService {
             unitCost?: Prisma.Decimal,
     )
     {
-        const accountId = getAccountId();
         const externalEventKey = `${ accountId }:receipt:${receiptId}`;
 
         const existingEntry = await this.prismaService.inventoryLedger.findUnique({
@@ -238,7 +242,7 @@ export class InventoryService {
             }
         });
         console.log('Created receipt ledger entry:', ledgerEntry);
-        await this.rebuildBalance(productId, locationCode);
+        await this.rebuildBalance(accountId, productId, locationCode);
 
         return ledgerEntry;
     }

@@ -4,10 +4,14 @@ import { BadRequestException,
      } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Prisma, PurchaseOrderStatus } from '@prisma/client';
-import { getAccountId } from '../../shared/account-context';  
 import { InventoryService } from '../inventory/inventory.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
+
+type PurchaseOrderInput = {
+    accountId: bigint,
+    createPurchaseOrderDto: CreatePurchaseOrderDto
+}
 
 @Injectable()
 export class ProcurementService {
@@ -16,8 +20,10 @@ export class ProcurementService {
         private readonly inventoryService: InventoryService
     ) {}
 
-    async createPurchaseOrder(createPurchaseOrderDto: CreatePurchaseOrderDto) {
-        const accountId = getAccountId();
+    async createPurchaseOrder(input: PurchaseOrderInput) {
+
+        const accountId = input.accountId;
+        const createPurchaseOrderDto = input.createPurchaseOrderDto;
         const vendorId = BigInt(createPurchaseOrderDto.vendorId);
         const vendor = await this.prismaService.vendor.findFirst({
             where: { id: vendorId, accountId }
@@ -78,8 +84,8 @@ export class ProcurementService {
         });
     }
 
-    async findAllPurchaseOrders() {
-        const accountId = getAccountId();
+    async findAllPurchaseOrders(accountId: bigint) {
+        
         return this.prismaService.purchaseOrder.findMany({
             where: { accountId },
             include: { 
@@ -98,8 +104,8 @@ export class ProcurementService {
         });
     }
 
-    async submitPurchaseOrder(purchaseOrderId: string) {
-        const accountId = getAccountId();
+    async submitPurchaseOrder(accountId: bigint, purchaseOrderId: string) {
+ 
         const poId = BigInt(purchaseOrderId);
 
         const purchaseOrder = await this.prismaService.purchaseOrder.findFirst({
@@ -141,10 +147,9 @@ export class ProcurementService {
          });
     }
 
-    async receivePurchaseOrder(id: string, receivePurchaseOrderDto: ReceivePurchaseOrderDto) 
+    async receivePurchaseOrder(accountId: bigint, id: string, receivePurchaseOrderDto: ReceivePurchaseOrderDto) 
     {
         const poId = BigInt(id);
-        const accountId = getAccountId();
 
         // Validate purchase order exists
         const purchaseOrder = await this.prismaService.purchaseOrder.findUnique({
@@ -237,6 +242,7 @@ export class ProcurementService {
 
                     // Create inventory ledger entry for the received quantity
                     await this.inventoryService.postReceiptEvent(
+                        accountId,
                         productId,
                         receivePurchaseOrderDto.locationCode,
                         receivedQty,

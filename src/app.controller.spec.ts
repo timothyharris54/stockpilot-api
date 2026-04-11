@@ -15,8 +15,8 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return "Welcome to Nventory Boss!"', () => {
+      expect(appController.getHello()).toBe('<h1>Welcome to Nventory Boss!</h1>');
     });
   });
 });

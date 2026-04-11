@@ -3,20 +3,26 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { Prisma } from '@prisma/client';
-import { listeners } from 'process';
-import { getAccountId } from '../../shared/account-context';
+
+type OrderInput = {
+    accountId: bigint,
+    createOrderDto: CreateOrderDto
+}
 
 @Injectable()
 export class OrdersService {
   constructor(
-    private readonly prismaService: PrismaService,
+    private readonly prisma: PrismaService,
     private readonly inventoryService: InventoryService
   ) {}
 
-    async create(createOrderDto: CreateOrderDto) {
-        const order = await this.prismaService.order.create({
+    async create(input: OrderInput) {
+        const accountId = input.accountId;
+        const createOrderDto = input.createOrderDto;
+        
+        const order = await this.prisma.order.create({
             data: {
-                accountId: getAccountId(),
+                accountId,
                 channel: createOrderDto.channel,
                 channelOrderId: createOrderDto.channelOrderId,
                 status: createOrderDto.status as any,
@@ -27,7 +33,7 @@ export class OrdersService {
                 orderTotal: createOrderDto.orderTotal ? new Prisma.Decimal(createOrderDto.orderTotal) : undefined,
                 orderLines: {
                     create: createOrderDto.lines.map(line => ({
-                        accountId: getAccountId(),
+                        accountId,
                         productId: line.productId ? BigInt(line.productId) : undefined,
                         channelLineId: line.channelLineId,
                         sku: line.sku,
@@ -43,50 +49,50 @@ export class OrdersService {
 
         if (['processing', 'paid', 'completed'].includes(createOrderDto.status)) {
             for (const line of order.orderLines) {
-                await this.inventoryService.postSaleEvent(line.id);
+                await this.inventoryService.postSaleEvent(accountId, line.id);
             }
         }
 
-        return this.prismaService.order.findUnique({
+        return this.prisma.order.findUnique({
             where: { 
-                accountId: getAccountId(),
+                accountId,
                 id: order.id 
             },
             include: { orderLines: true }
         });
     }
 
-    async cancel(orderId: string) {
+    async cancel(accountId: bigint, orderId: string) {
         const id = BigInt(orderId);
-        let order = await this.prismaService.order.findFirst({
-        where: {
-            id,
-            accountId: getAccountId(),
-        },
-        include: {
-            orderLines: true,
-        },
+        let order = await this.prisma.order.findFirst({
+            where: {
+                id,
+                accountId: accountId,
+            },
+            include: {
+                orderLines: true,
+            },
         });
 
         if (!order) {
             throw new NotFoundException('Order not found');
         } 
 
-        order = await this.prismaService.order.update({
+        order = await this.prisma.order.update({
             where: { id },
             data: { status: 'cancelled' },
             include: { orderLines: true }
         });
 
         for (const line of order.orderLines) {
-            await this.inventoryService.postSaleReversal(line.id);
+            await this.inventoryService.postSaleReversal(accountId, line.id);
         }
         return order;
     }
 
-    findAll() {
-        return this.prismaService.order.findMany({
-            where: { accountId: getAccountId() },
+    findAll(accountId: bigint) {
+        return this.prisma.order.findMany({
+            where: { accountId: accountId },
             include: { orderLines: true },
             orderBy: { orderedAt: 'desc' }
         });

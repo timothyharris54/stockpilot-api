@@ -9,14 +9,20 @@ describe('RecommendationConversionService', () => {
   let service: RecommendationConversionService;
 
   const txMock = {
+    account: {
+      update: jest.fn(),
+    },
     purchaseOrder: {
-      count: jest.fn(),
       create: jest.fn(),
     },
     purchaseOrderLine: {
       create: jest.fn(),
     },
+    vendorProduct: {
+      findMany: jest.fn(),
+    },
     reorderRecommendation: {
+      findMany: jest.fn(),
       updateMany: jest.fn(),
     },
   };
@@ -40,6 +46,15 @@ describe('RecommendationConversionService', () => {
 
     prismaMock.$transaction.mockImplementation(async (callback) => {
       return callback(txMock);
+    });
+    txMock.reorderRecommendation.findMany.mockImplementation(
+      prismaMock.reorderRecommendation.findMany,
+    );
+    txMock.vendorProduct.findMany.mockImplementation(
+      prismaMock.vendorProduct.findMany,
+    );
+    vendorProductSelectorMock.select.mockImplementation((vendorProducts) => {
+      return vendorProducts[0] ?? null;
     });
 
     const module: TestingModule = await Test.createTestingModule({
@@ -132,7 +147,9 @@ describe('RecommendationConversionService', () => {
         .mockReturnValueOnce(vendorProductsForRec1[0])
         .mockReturnValueOnce(vendorProductsForRec2[0]);
 
-      txMock.purchaseOrder.count.mockResolvedValue(0);
+      txMock.account.update.mockResolvedValue({
+        nextPurchaseOrderNumber: 2,
+      });
 
       txMock.purchaseOrder.create.mockResolvedValue({
         id: 9001n,
@@ -235,43 +252,49 @@ describe('RecommendationConversionService', () => {
 
       expect(txMock.reorderRecommendation.updateMany).toHaveBeenCalledTimes(2);
 
-      expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(1, {
-        where: {
-          accountId,
-          id: 101n,
-          status: { in: ['open', 'reviewed'] },
-          purchaseOrderId: null,
-          purchaseOrderLineId: null,
+      expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(
+        1,
+        {
+          where: {
+            accountId,
+            id: 101n,
+            status: { in: ['open', 'reviewed'] },
+            purchaseOrderId: null,
+            purchaseOrderLineId: null,
+          },
+          data: {
+            status: RecommendationStatus.converted,
+            vendorId: 501n,
+            vendorProductId: 201n,
+            purchaseOrderId: 9001n,
+            purchaseOrderLineId: 9101n,
+            finalQty: new Prisma.Decimal(12),
+            convertedAt: expect.any(Date),
+          },
         },
-        data: {
-          status: RecommendationStatus.converted,
-          vendorId: 501n,
-          vendorProductId: 201n,
-          purchaseOrderId: 9001n,
-          purchaseOrderLineId: 9101n,
-          finalQty: new Prisma.Decimal(12),
-          convertedAt: expect.any(Date),
-        },
-      });
+      );
 
-      expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(2, {
-        where: {
-          accountId,
-          id: 102n,
-          status: { in: ['open', 'reviewed'] },
-          purchaseOrderId: null,
-          purchaseOrderLineId: null,
+      expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(
+        2,
+        {
+          where: {
+            accountId,
+            id: 102n,
+            status: { in: ['open', 'reviewed'] },
+            purchaseOrderId: null,
+            purchaseOrderLineId: null,
+          },
+          data: {
+            status: RecommendationStatus.converted,
+            vendorId: 501n,
+            vendorProductId: 202n,
+            purchaseOrderId: 9001n,
+            purchaseOrderLineId: 9102n,
+            finalQty: new Prisma.Decimal(12),
+            convertedAt: expect.any(Date),
+          },
         },
-        data: {
-          status: RecommendationStatus.converted,
-          vendorId: 501n,
-          vendorProductId: 202n,
-          purchaseOrderId: 9001n,
-          purchaseOrderLineId: 9102n,
-          finalQty: new Prisma.Decimal(12),
-          convertedAt: expect.any(Date),
-        },
-      });
+      );
 
       expect(result).toEqual({
         createdPurchaseOrders: 1,
@@ -288,239 +311,248 @@ describe('RecommendationConversionService', () => {
       });
     });
 
-
     it('converts two recommendations for different vendors into two purchase orders with one line each', async () => {
-        const accountId = 1n;
+      const accountId = 1n;
 
-        const recommendation1 = {
+      const recommendation1 = {
+        id: 101n,
+        accountId,
+        productId: 11n,
+        status: RecommendationStatus.open,
+        recommendedQty: new Prisma.Decimal(5),
+        product: {
+          id: 11n,
+          sku: 'WB-100',
+          name: 'Widget Basic',
+        },
+      };
+
+      const recommendation2 = {
+        id: 102n,
+        accountId,
+        productId: 12n,
+        status: RecommendationStatus.reviewed,
+        recommendedQty: new Prisma.Decimal(7),
+        product: {
+          id: 12n,
+          sku: 'WP-200',
+          name: 'Widget Pro',
+        },
+      };
+
+      prismaMock.reorderRecommendation.findMany.mockResolvedValue([
+        recommendation1,
+        recommendation2,
+      ]);
+
+      const vendorProductsForRec1 = [
+        {
+          id: 201n,
+          accountId,
+          vendorId: 501n,
+          productId: 11n,
+          unitCost: new Prisma.Decimal('8.25'),
+          minOrderQty: new Prisma.Decimal('12'),
+          orderMultiple: new Prisma.Decimal('6'),
+          isPrimaryVendor: true,
+          isActive: true,
+        },
+      ];
+
+      const vendorProductsForRec2 = [
+        {
+          id: 202n,
+          accountId,
+          vendorId: 502n,
+          productId: 12n,
+          unitCost: new Prisma.Decimal('13.75'),
+          minOrderQty: new Prisma.Decimal('6'),
+          orderMultiple: new Prisma.Decimal('6'),
+          isPrimaryVendor: true,
+          isActive: true,
+        },
+      ];
+
+      prismaMock.vendorProduct.findMany
+        .mockResolvedValueOnce(vendorProductsForRec1)
+        .mockResolvedValueOnce(vendorProductsForRec2);
+
+      vendorProductSelectorMock.select
+        .mockReturnValueOnce(vendorProductsForRec1[0])
+        .mockReturnValueOnce(vendorProductsForRec2[0]);
+
+      txMock.account.update
+        .mockResolvedValueOnce({
+          nextPurchaseOrderNumber: 2,
+        })
+        .mockResolvedValueOnce({
+          nextPurchaseOrderNumber: 3,
+        });
+
+      txMock.purchaseOrder.create
+        .mockResolvedValueOnce({
+          id: 9001n,
+          accountId,
+          vendorId: 501n,
+          poNumber: 'PO-000001',
+          status: 'draft',
+        })
+        .mockResolvedValueOnce({
+          id: 9002n,
+          accountId,
+          vendorId: 502n,
+          poNumber: 'PO-000002',
+          status: 'draft',
+        });
+
+      txMock.purchaseOrderLine.create
+        .mockResolvedValueOnce({
+          id: 9101n,
+          purchaseOrderId: 9001n,
+          productId: 11n,
+        })
+        .mockResolvedValueOnce({
+          id: 9102n,
+          purchaseOrderId: 9002n,
+          productId: 12n,
+        });
+
+      txMock.reorderRecommendation.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 1 });
+
+      const result = await service.convertRecommendations({
+        accountId,
+        recommendationIds: ['101', '102'],
+      });
+
+      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledWith({
+        where: {
+          accountId,
+          id: { in: [101n, 102n] },
+          status: { in: ['open', 'reviewed'] },
+        },
+        select: {
+          id: true,
+          productId: true,
+          recommendedQty: true,
+        },
+        orderBy: {
+          id: 'asc',
+        },
+      });
+
+      expect(txMock.purchaseOrder.create).toHaveBeenCalledTimes(2);
+
+      expect(txMock.purchaseOrder.create).toHaveBeenNthCalledWith(1, {
+        data: {
+          accountId,
+          vendorId: 501n,
+          poNumber: 'PO-000001',
+          status: 'draft',
+        },
+      });
+
+      expect(txMock.purchaseOrder.create).toHaveBeenNthCalledWith(2, {
+        data: {
+          accountId,
+          vendorId: 502n,
+          poNumber: 'PO-000002',
+          status: 'draft',
+        },
+      });
+
+      expect(txMock.purchaseOrderLine.create).toHaveBeenCalledTimes(2);
+
+      expect(txMock.purchaseOrderLine.create).toHaveBeenNthCalledWith(1, {
+        data: {
+          accountId,
+          purchaseOrderId: 9001n,
+          productId: 11n,
+          vendorProductId: 201n,
+          orderedQty: new Prisma.Decimal(12),
+          unitCost: new Prisma.Decimal('8.25'),
+          lineTotal: new Prisma.Decimal('99.00'),
+        },
+      });
+
+      expect(txMock.purchaseOrderLine.create).toHaveBeenNthCalledWith(2, {
+        data: {
+          accountId,
+          purchaseOrderId: 9002n,
+          productId: 12n,
+          vendorProductId: 202n,
+          orderedQty: new Prisma.Decimal(12),
+          unitCost: new Prisma.Decimal('13.75'),
+          lineTotal: new Prisma.Decimal('165.00'),
+        },
+      });
+
+      expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(
+        1,
+        {
+          where: {
+            accountId,
             id: 101n,
-            accountId,
-            productId: 11n,
-            status: RecommendationStatus.open,
-            recommendedQty: new Prisma.Decimal(5),
-            product: {
-            id: 11n,
-            sku: 'WB-100',
-            name: 'Widget Basic',
-            },
-        };
-
-        const recommendation2 = {
-            id: 102n,
-            accountId,
-            productId: 12n,
-            status: RecommendationStatus.reviewed,
-            recommendedQty: new Prisma.Decimal(7),
-            product: {
-            id: 12n,
-            sku: 'WP-200',
-            name: 'Widget Pro',
-            },
-        };
-
-        prismaMock.reorderRecommendation.findMany.mockResolvedValue([
-            recommendation1,
-            recommendation2,
-        ]);
-
-        const vendorProductsForRec1 = [
-            {
-            id: 201n,
-            accountId,
+            status: { in: ['open', 'reviewed'] },
+            purchaseOrderId: null,
+            purchaseOrderLineId: null,
+          },
+          data: {
+            status: RecommendationStatus.converted,
             vendorId: 501n,
-            productId: 11n,
-            unitCost: new Prisma.Decimal('8.25'),
-            minOrderQty: new Prisma.Decimal('12'),
-            orderMultiple: new Prisma.Decimal('6'),
-            isPrimaryVendor: true,
-            isActive: true,
-            },
-        ];
-
-        const vendorProductsForRec2 = [
-            {
-            id: 202n,
-            accountId,
-            vendorId: 502n,
-            productId: 12n,
-            unitCost: new Prisma.Decimal('13.75'),
-            minOrderQty: new Prisma.Decimal('6'),
-            orderMultiple: new Prisma.Decimal('6'),
-            isPrimaryVendor: true,
-            isActive: true,
-            },
-        ];
-
-        prismaMock.vendorProduct.findMany
-            .mockResolvedValueOnce(vendorProductsForRec1)
-            .mockResolvedValueOnce(vendorProductsForRec2);
-
-        vendorProductSelectorMock.select
-            .mockReturnValueOnce(vendorProductsForRec1[0])
-            .mockReturnValueOnce(vendorProductsForRec2[0]);
-
-        txMock.purchaseOrder.count
-            .mockResolvedValueOnce(0)
-            .mockResolvedValueOnce(1);
-
-        txMock.purchaseOrder.create
-            .mockResolvedValueOnce({
-            id: 9001n,
-            accountId,
-            vendorId: 501n,
-            poNumber: 'PO-000001',
-            status: 'draft',
-            })
-            .mockResolvedValueOnce({
-            id: 9002n,
-            accountId,
-            vendorId: 502n,
-            poNumber: 'PO-000002',
-            status: 'draft',
-            });
-
-        txMock.purchaseOrderLine.create
-            .mockResolvedValueOnce({
-            id: 9101n,
-            purchaseOrderId: 9001n,
-            productId: 11n,
-            })
-            .mockResolvedValueOnce({
-            id: 9102n,
-            purchaseOrderId: 9002n,
-            productId: 12n,
-            });
-
-        txMock.reorderRecommendation.updateMany
-            .mockResolvedValueOnce({ count: 1 })
-            .mockResolvedValueOnce({ count: 1 });
-
-        const result = await service.convertRecommendations({
-            accountId,
-            recommendationIds: ['101', '102'],
-        });
-
-        expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledWith({
-            where: {
-                accountId,
-                id: { in: [101n, 102n] },
-                status: { in: ['open', 'reviewed'] },
-            },
-            select: {
-                id: true,
-                productId: true,
-                recommendedQty: true,
-            },
-            orderBy: {
-                id: 'asc',
-            },
-        });
-
-        expect(txMock.purchaseOrder.create).toHaveBeenCalledTimes(2);
-
-        expect(txMock.purchaseOrder.create).toHaveBeenNthCalledWith(1, {
-            data: {
-            accountId,
-            vendorId: 501n,
-            poNumber: 'PO-000001',
-            status: 'draft',
-            },
-        });
-
-        expect(txMock.purchaseOrder.create).toHaveBeenNthCalledWith(2, {
-            data: {
-            accountId,
-            vendorId: 502n,
-            poNumber: 'PO-000002',
-            status: 'draft',
-            },
-        });
-
-        expect(txMock.purchaseOrderLine.create).toHaveBeenCalledTimes(2);
-
-        expect(txMock.purchaseOrderLine.create).toHaveBeenNthCalledWith(1, {
-            data: {
-            accountId,
-            purchaseOrderId: 9001n,
-            productId: 11n,
             vendorProductId: 201n,
-            orderedQty: new Prisma.Decimal(12),
-            unitCost: new Prisma.Decimal('8.25'),
-            lineTotal: new Prisma.Decimal('99.00'),
-            },
-        });
+            purchaseOrderId: 9001n,
+            purchaseOrderLineId: 9101n,
+            finalQty: new Prisma.Decimal(12),
+            convertedAt: expect.any(Date),
+          },
+        },
+      );
 
-        expect(txMock.purchaseOrderLine.create).toHaveBeenNthCalledWith(2, {
-            data: {
+      expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(
+        2,
+        {
+          where: {
             accountId,
-            purchaseOrderId: 9002n,
-            productId: 12n,
+            id: 102n,
+            status: { in: ['open', 'reviewed'] },
+            purchaseOrderId: null,
+            purchaseOrderLineId: null,
+          },
+          data: {
+            status: RecommendationStatus.converted,
+            vendorId: 502n,
             vendorProductId: 202n,
-            orderedQty: new Prisma.Decimal(12),
-            unitCost: new Prisma.Decimal('13.75'),
-            lineTotal: new Prisma.Decimal('165.00'),
-            },
-        });
+            purchaseOrderId: 9002n,
+            purchaseOrderLineId: 9102n,
+            finalQty: new Prisma.Decimal(12),
+            convertedAt: expect.any(Date),
+          },
+        },
+      );
 
-        expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(1, {
-            where: {
-                accountId,
-                id: 101n,
-                status: { in: ['open', 'reviewed'] },
-                purchaseOrderId: null,
-                purchaseOrderLineId: null,
-            },
-            data: {
-                status: RecommendationStatus.converted,
-                vendorId: 501n,
-                vendorProductId: 201n,
-                purchaseOrderId: 9001n,
-                purchaseOrderLineId: 9101n,
-                finalQty: new Prisma.Decimal(12),
-                convertedAt: expect.any(Date),
-            },
-        });
-
-        expect(txMock.reorderRecommendation.updateMany).toHaveBeenNthCalledWith(2, {
-            where: {
-                accountId,
-                id: 102n,
-                status: { in: ['open', 'reviewed'] },
-                purchaseOrderId: null,
-                purchaseOrderLineId: null,
-            },
-            data: {
-                status: RecommendationStatus.converted,
-                vendorId: 502n,
-                vendorProductId: 202n,
-                purchaseOrderId: 9002n,
-                purchaseOrderLineId: 9102n,
-                finalQty: new Prisma.Decimal(12),
-                convertedAt: expect.any(Date),
-            },
-        });
-
-        expect(result).toEqual({
-            createdPurchaseOrders: 2,
-            convertedRecommendations: 2,
-            purchaseOrders: [
-            {
-                purchaseOrderId: '9001',
-                vendorId: '501',
-                lineCount: 1,
-                totalOrderedQty: '12',
-                totalCost: '99.00',
-            },
-            {
-                purchaseOrderId: '9002',
-                vendorId: '502',
-                lineCount: 1,
-                totalOrderedQty: '12',
-                totalCost: '165.00',
-            },
-            ],
-        });
-    });  
+      expect(result).toEqual({
+        createdPurchaseOrders: 2,
+        convertedRecommendations: 2,
+        purchaseOrders: [
+          {
+            purchaseOrderId: '9001',
+            vendorId: '501',
+            lineCount: 1,
+            totalOrderedQty: '12',
+            totalCost: '99.00',
+          },
+          {
+            purchaseOrderId: '9002',
+            vendorId: '502',
+            lineCount: 1,
+            totalOrderedQty: '12',
+            totalCost: '165.00',
+          },
+        ],
+      });
+    });
 
     it('previews recommendations as grouped vendor summary data', async () => {
       const accountId = 1n;
@@ -595,89 +627,93 @@ describe('RecommendationConversionService', () => {
         totalRecommendations: 1,
       });
 
-      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(
+        1,
+      );
       expect(prismaMock.vendorProduct.findMany).toHaveBeenCalledTimes(1);
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
 
     it('fails when a recommendation cannot be updated due to concurrent modification', async () => {
-        const accountId = 1n;
+      const accountId = 1n;
 
-        prismaMock.reorderRecommendation.findMany.mockResolvedValue([
-            {
-            id: 101n,
-            accountId,
-            productId: 11n,
-            status: RecommendationStatus.open,
-            recommendedQty: new Prisma.Decimal(5),
-            product: {
-                id: 11n,
-                sku: 'WB-100',
-                name: 'Widget Basic',
-            },
-            },
-        ]);
+      prismaMock.reorderRecommendation.findMany.mockResolvedValue([
+        {
+          id: 101n,
+          accountId,
+          productId: 11n,
+          status: RecommendationStatus.open,
+          recommendedQty: new Prisma.Decimal(5),
+          product: {
+            id: 11n,
+            sku: 'WB-100',
+            name: 'Widget Basic',
+          },
+        },
+      ]);
 
-        prismaMock.vendorProduct.findMany.mockResolvedValue([
-            {
-            id: 201n,
-            accountId,
-            vendorId: 501n,
-            productId: 11n,
-            unitCost: new Prisma.Decimal('8.25'),
-            minOrderQty: new Prisma.Decimal('12'),
-            orderMultiple: new Prisma.Decimal('6'),
-            isPrimaryVendor: true,
-            isActive: true,
-            },
-        ]);
+      prismaMock.vendorProduct.findMany.mockResolvedValue([
+        {
+          id: 201n,
+          accountId,
+          vendorId: 501n,
+          productId: 11n,
+          unitCost: new Prisma.Decimal('8.25'),
+          minOrderQty: new Prisma.Decimal('12'),
+          orderMultiple: new Prisma.Decimal('6'),
+          isPrimaryVendor: true,
+          isActive: true,
+        },
+      ]);
 
-        vendorProductSelectorMock.select.mockReturnValue({
-            id: 201n,
-            vendorId: 501n,
-            unitCost: new Prisma.Decimal('8.25'),
-            minOrderQty: new Prisma.Decimal('12'),
-            orderMultiple: new Prisma.Decimal('6'),
+      vendorProductSelectorMock.select.mockReturnValue({
+        id: 201n,
+        vendorId: 501n,
+        unitCost: new Prisma.Decimal('8.25'),
+        minOrderQty: new Prisma.Decimal('12'),
+        orderMultiple: new Prisma.Decimal('6'),
+      });
+
+      txMock.account.update.mockResolvedValue({
+        nextPurchaseOrderNumber: 2,
+      });
+
+      txMock.purchaseOrder.create.mockResolvedValue({
+        id: 9001n,
+        accountId,
+        vendorId: 501n,
+        poNumber: 'PO-000001',
+        status: 'draft',
+      });
+
+      txMock.purchaseOrderLine.create.mockResolvedValue({
+        id: 9101n,
+        purchaseOrderId: 9001n,
+        productId: 11n,
+      });
+
+      txMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 0,
+      });
+
+      try {
+        await service.convertRecommendations({
+          accountId,
+          recommendationIds: ['101'],
         });
+        fail('Expected convertRecommendations to throw');
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as BadRequestException).message).toBe(
+          'Recommendation 101 could not be converted due to a concurrent update or invalid state.',
+        );
+      }
 
-        txMock.purchaseOrder.count.mockResolvedValue(0);
-
-        txMock.purchaseOrder.create.mockResolvedValue({
-            id: 9001n,
-            accountId,
-            vendorId: 501n,
-            poNumber: 'PO-000001',
-            status: 'draft',
-        });
-
-        txMock.purchaseOrderLine.create.mockResolvedValue({
-            id: 9101n,
-            purchaseOrderId: 9001n,
-            productId: 11n,
-        });
-
-        txMock.reorderRecommendation.updateMany.mockResolvedValue({
-            count: 0,
-        });
-
-        try {
-            await service.convertRecommendations({
-                accountId,
-                recommendationIds: ['101'],
-            });
-            fail('Expected convertRecommendations to throw');
-        } catch (error) {
-            expect(error).toBeInstanceOf(BadRequestException);
-            expect((error as BadRequestException).message).toBe(
-            'Recommendation 101 could not be converted due to a concurrent update or invalid state.',
-            );
-        }
-
-        expect(txMock.purchaseOrder.create).toHaveBeenCalledTimes(1);
-        expect(txMock.purchaseOrderLine.create).toHaveBeenCalledTimes(1);
-        expect(txMock.reorderRecommendation.updateMany).toHaveBeenCalledTimes(1);
+      expect(txMock.purchaseOrder.create).toHaveBeenCalledTimes(1);
+      expect(txMock.purchaseOrderLine.create).toHaveBeenCalledTimes(1);
+      expect(txMock.reorderRecommendation.updateMany).toHaveBeenCalledTimes(1);
     });
-        
+
     it('fails when duplicate recommendationIds are provided', async () => {
       const accountId = 1n;
 
@@ -761,14 +797,16 @@ describe('RecommendationConversionService', () => {
         );
       }
 
-      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(
+        1,
+      );
       expect(prismaMock.vendorProduct.findMany).toHaveBeenCalledTimes(1);
-      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
 
       expect(txMock.purchaseOrder.create).not.toHaveBeenCalled();
       expect(txMock.purchaseOrderLine.create).not.toHaveBeenCalled();
       expect(txMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
-    });  
+    });
 
     it('fails when one or more recommendations are not found or not convertible', async () => {
       const accountId = 1n;
@@ -802,15 +840,17 @@ describe('RecommendationConversionService', () => {
         );
       }
 
-      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(
+        1,
+      );
       expect(prismaMock.vendorProduct.findMany).not.toHaveBeenCalled();
       expect(vendorProductSelectorMock.select).not.toHaveBeenCalled();
-      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
 
       expect(txMock.purchaseOrder.create).not.toHaveBeenCalled();
       expect(txMock.purchaseOrderLine.create).not.toHaveBeenCalled();
       expect(txMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
-    });    
+    });
 
     it('fails when calculated final quantity is zero or less', async () => {
       const accountId = 1n;
@@ -865,16 +905,17 @@ describe('RecommendationConversionService', () => {
         );
       }
 
-      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(
+        1,
+      );
       expect(prismaMock.vendorProduct.findMany).toHaveBeenCalledTimes(1);
       expect(vendorProductSelectorMock.select).toHaveBeenCalledTimes(1);
 
-      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
       expect(txMock.purchaseOrder.create).not.toHaveBeenCalled();
       expect(txMock.purchaseOrderLine.create).not.toHaveBeenCalled();
       expect(txMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
     });
-
   });
 
   describe('previewRecommendations', () => {
@@ -1163,8 +1204,7 @@ describe('RecommendationConversionService', () => {
       expect(txMock.purchaseOrder.create).not.toHaveBeenCalled();
       expect(txMock.purchaseOrderLine.create).not.toHaveBeenCalled();
       expect(txMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
-    });        
+    });
     // failure paths
-  });  
-  
+  });
 });

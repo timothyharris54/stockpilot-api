@@ -41,13 +41,13 @@ describe('ReplenishmentController', () => {
             { ok: true }
         );
 
-        const result = await controller.generateForProduct(identity, '2', 'MAIN', 'true');
+        const result = await controller.generateForProduct(identity, '2', 'MAIN');
 
         expect(replenishmentEngineServiceMock.generateForProduct).toHaveBeenCalledWith(
             1n,
             2n,
             'MAIN',
-            true,
+            false,
         );
         expect(result).toEqual({ ok: true });
     });
@@ -57,12 +57,12 @@ describe('ReplenishmentController', () => {
             { ok: true },
         ]);
 
-        const result = await controller.generateForAccount(identity, 'MAIN', 'true');
+        const result = await controller.generateForAccount(identity, 'MAIN');
 
         expect(replenishmentEngineServiceMock.generateForAccount).toHaveBeenCalledWith(
             1n, 
             'MAIN',
-            true,
+            false,
         );
         expect(result).toEqual([{ ok: true }]);
     });

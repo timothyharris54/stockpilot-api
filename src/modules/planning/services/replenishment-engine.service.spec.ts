@@ -3,7 +3,6 @@ import { PrismaService } from 'src/common/prisma/prisma.service';
 import { ReplenishmentEngineService } from './replenishment-engine.service';
 import { SalesDailyService } from './sales-daily.service';
 import { InventoryPlanningService } from 'src/modules/inventory/services/inventory-planning.service';
-import { log } from 'console';
 
 describe('ReplenishmentEngineService', () => {
     let service: ReplenishmentEngineService;
@@ -173,7 +172,7 @@ describe('ReplenishmentEngineService', () => {
             productId: 2n,
             locationCode: 'MAIN',
             safetyStock: 5,
-            targetDaysOfCover: 30,
+            targetDaysOfCover: 15,
             overrideLeadTimeDays: 7,
             minReorderQty: 12,
             isActive: true,
@@ -185,10 +184,10 @@ describe('ReplenishmentEngineService', () => {
             accountId: 1n,
             productId: 2n,
             locationCode: 'MAIN',
-            qtyOnHand: 7,
+            qtyOnHand: 11,
             qtyReserved: 0,
             qtyIncoming: 0,
-            qtyAvailable: 7,
+            qtyAvailable: 11,
         });
 
         prismaMock.reorderRecommendation.create.mockResolvedValue({
@@ -200,7 +199,6 @@ describe('ReplenishmentEngineService', () => {
         });
 
         const result = await service.generateForProduct(1n, 2n, 'MAIN');
-        console.log('result.calc: '+JSON.stringify(result.calculation));
         expect(result.calculation.shouldReorder).toBe(true);
 
         // avgDailySales = 1
@@ -211,13 +209,13 @@ describe('ReplenishmentEngineService', () => {
         // minReorderQty = 12 => recommendedQty should become 12
 
         expect(result.calculation.reorderPoint).toBe(12);
-        expect(result.calculation.targetStock).toBe(30);
-        expect(result.calculation.rawRecommendedQty).toBe(5);
+        expect(result.calculation.targetStock).toBe(15);
+        expect(result.calculation.rawRecommendedQty).toBe(4);
         expect(result.calculation.recommendedQty).toBe(12);
 
         expect(prismaMock.reorderRecommendation.create).toHaveBeenCalledWith({
             data: expect.objectContaining({
-            recommendedQty: '12',
+                recommendedQty: '12',
             }),
         });
     });  

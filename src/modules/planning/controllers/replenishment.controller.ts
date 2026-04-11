@@ -5,12 +5,12 @@ import {
   Query,
   BadRequestException,
   UseGuards,
+  Get,
 } from '@nestjs/common';
 import { ReplenishmentEngineService } from 'src/modules/planning/services/replenishment-engine.service';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
 import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
-import { identity } from 'rxjs';
 
 @Controller('planning/replenishment')
 @UseGuards(JwtAuthGuard)
@@ -29,14 +29,12 @@ export class ReplenishmentController {
     const productId = this.parseBigInt(productIdParam, 'productId');
     const dryRun = this.parseBooleanQuery(dryRunParam);
 
-    console.log(' ==> : '+dryRun+' | '+identity.accountId)
     return this.replenishmentEngineService.generateForProduct(
       identity.accountId,
       productId,
       locationCode ?? 'MAIN',
       dryRun,
     );
-
   }
 
   @Post('run')
@@ -64,5 +62,5 @@ export class ReplenishmentController {
   private parseBooleanQuery(value?: string): boolean {
     if (value === undefined) return false;
     return value === 'true';
-  }  
+  }
 }

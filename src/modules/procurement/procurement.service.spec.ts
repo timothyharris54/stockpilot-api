@@ -5,7 +5,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 describe('ProcurementService', () => {
   let service: ProcurementService;
-  let inventoryService: InventoryService;
+
+  const inventoryServiceMock = {};
   const prismaMock = {};
 
   beforeEach(async () => {
@@ -18,7 +19,7 @@ describe('ProcurementService', () => {
         },
         { 
           provide: InventoryService, 
-          useValue: { prismaMock } 
+          useValue: { inventoryServiceMock } 
         }
       ],
     }).compile();

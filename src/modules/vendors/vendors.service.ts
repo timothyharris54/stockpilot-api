@@ -3,14 +3,23 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 import { CreateVendorProductDto } from './dto/create-vendor-product.dto';
-import { getAccountId } from '../../shared/account-context';
+
+type VendorInput = {
+  accountId: bigint,
+  createVendorDto: CreateVendorDto
+}
+type VendorProductInput = {
+  accountId: bigint,
+  createVendorProductDto: CreateVendorProductDto
+}
 
 @Injectable()
 export class VendorsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateVendorDto) {
-    const accountId = getAccountId();
+  async create(input: VendorInput) {
+    const accountId = input.accountId;
+    const dto = input.createVendorDto;
 
     return this.prisma.vendor.create({  // Changed to lowercase
       data: {
@@ -27,9 +36,8 @@ export class VendorsService {
     });
   }
 
-  async findAll() {
-    const accountId = getAccountId();
-
+  async findAll(accountId: bigint) {
+    
     return this.prisma.vendor.findMany({  // Changed to lowercase
       where: {
         accountId,
@@ -40,8 +48,9 @@ export class VendorsService {
     });
   }
 
-  async createVendorProduct(dto: CreateVendorProductDto) {
-    const accountId = getAccountId();
+  async createVendorProduct(input: VendorProductInput) {
+    const accountId = input.accountId;
+    const dto = input.createVendorProductDto;
     const vendorId = BigInt(dto.vendorId);
     const productId = BigInt(dto.productId);
 
@@ -117,8 +126,7 @@ export class VendorsService {
     }
   }
 
-  async findAllVendorProducts() {
-    const accountId = getAccountId();
+  async findAllVendorProducts(accountId: bigint) {
 
     return this.prisma.vendorProduct.findMany({  // Changed to lowercase
       where: {

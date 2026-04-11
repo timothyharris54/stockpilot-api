@@ -8,4 +8,4 @@ export interface ResolvedRecommendation {
   recommendedQty: Prisma.Decimal;
   finalQty: Prisma.Decimal;
   unitCost: Prisma.Decimal | null;
-};
+}

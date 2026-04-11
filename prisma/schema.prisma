@@ -49,10 +49,11 @@ enum ReferenceType {
 }
 
 model Account {
-  id        BigInt   @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                      BigInt   @id @default(autoincrement())
+  name                    String
+  nextPurchaseOrderNumber Int      @default(1000)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   users                  User[]
   products               Product[]

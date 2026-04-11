@@ -1,5 +1,3 @@
-import { Prisma } from '@prisma/client';
-
 export interface ConversionSummary {
   createdPurchaseOrders: number;
   convertedRecommendations: number;
@@ -10,4 +8,4 @@ export interface ConversionSummary {
     totalOrderedQty: string;
     totalCost: string;
   }>;
-};
+}

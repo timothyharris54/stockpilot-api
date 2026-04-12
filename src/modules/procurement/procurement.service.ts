@@ -61,6 +61,7 @@ export class ProcurementService {
             data: {
                 accountId,
                 vendorId,
+                locationCode: createPurchaseOrderDto.locationCode ?? 'MAIN',
                 poNumber: createPurchaseOrderDto.poNumber,
                 expectedAt: createPurchaseOrderDto.expectedAt ? new Date(createPurchaseOrderDto.expectedAt) : undefined,
                 notes: createPurchaseOrderDto.notes,
@@ -104,61 +105,95 @@ export class ProcurementService {
         });
     }
 
-    async submitPurchaseOrder(accountId: bigint, purchaseOrderId: string) {
+    async submitPurchaseOrder(accountId: bigint, purchaseOrderId: string, locationCode: string) {
  
-        const poId = BigInt(purchaseOrderId);
+        let poId: bigint;
+
+        try {
+            poId = BigInt(purchaseOrderId);
+        } catch {
+            throw new BadRequestException('Invalid purchase order id');
+        }
 
         const purchaseOrder = await this.prismaService.purchaseOrder.findFirst({
-            where: { id: poId, accountId },
+            where: { id: poId, accountId, locationCode },
             include: { lines: true }
         });
 
         if (!purchaseOrder) {
-            throw new NotFoundException(`Purchase order with ID ${purchaseOrderId} not found`);
+            throw new NotFoundException(`Purchase order with ID ${purchaseOrderId} at location ${locationCode} not found`);
         }
-        if (purchaseOrder.status !== 'draft') {
+        if (purchaseOrder.status !== PurchaseOrderStatus.draft) {
             throw new BadRequestException(`Only draft purchase orders can be submitted`);
         }
 
+        const now = new Date();
+
         const po = await this.prismaService.$transaction(async (tx) => {
-            const updatedPo = await tx.purchaseOrder.update({
-                where: { id: poId },
-                data: { 
-                    status: 'submitted',
-                    submittedAt: new Date(),
-                    orderedAt: new Date(),
+            const updatedResult = await tx.purchaseOrder.updateMany({
+                where: { 
+                    id: poId, 
+                    accountId, 
+                    locationCode,
+                    status: PurchaseOrderStatus.draft
                 },
-                include: { 
-                    vendor: true,
-                    lines: {
-                        include:  {
-                            product: true,
-                            vendorProduct: true
-                        }
-                    }
+                data: { 
+                    status: PurchaseOrderStatus.submitted,
+                    submittedAt: now,
+                    orderedAt: now,
                 }
             });
 
-            for (const line of purchaseOrder.lines) {
-                await this.updateIncomingForProduct(tx, accountId, line.productId, 'MAIN');
+            if (updatedResult.count !== 1) {
+                throw new BadRequestException(
+                    `Purchase order ${purchaseOrderId} not found or not in draft status`);
+            }
+
+            const updatedPo = await tx.purchaseOrder.findUnique({
+                where: { id: poId, locationCode },
+                include: {
+                    vendor: true,
+                    lines: {
+                        include: {
+                            product: true,
+                            vendorProduct: true,
+                        },
+                    },
+                },
+            });
+
+            if (!updatedPo) {
+                throw new NotFoundException(`Purchase order with ID ${purchaseOrderId} at location ${locationCode} not found after update`);
+            }
+
+            for (const line of updatedPo.lines) {
+                await this.updateIncomingForProduct(
+                    tx, 
+                    accountId, 
+                    line.productId, 
+                    updatedPo.locationCode
+                );
             }
             
             return updatedPo;
+            
          });
+
+         return po;
     }
 
-    async receivePurchaseOrder(accountId: bigint, id: string, receivePurchaseOrderDto: ReceivePurchaseOrderDto) 
+    async receivePurchaseOrder(accountId: bigint, id: string, locationCode: string, receivePurchaseOrderDto: ReceivePurchaseOrderDto) 
     {
         const poId = BigInt(id);
 
         // Validate purchase order exists
         const purchaseOrder = await this.prismaService.purchaseOrder.findUnique({
-            where: { id: poId, accountId },
+            where: { id: poId, accountId, locationCode },
             include: { lines: true }
         });
 
         if (!purchaseOrder) {
-            throw new NotFoundException(`Purchase order with ID ${id} not found`);
+            throw new NotFoundException(`Purchase order with ID ${id} at location ${locationCode} not found`);
         }
 
         if (!['submitted', 'partially_received'].includes(purchaseOrder.status)) {
@@ -179,13 +214,13 @@ export class ProcurementService {
             }
 
             const receivedQty = new Prisma.Decimal(line.receivedQty);
-            const remainingQty = poLine.orderedQty.minus(receivedQty);
+            const remainingQty = poLine.orderedQty.minus(poLine.receivedQty);
 
-            if (remainingQty.isNeg()) {
+            if (receivedQty.lte(new Prisma.Decimal(0))) {
                 throw new BadRequestException('Received quantity must be greater than zero');
             }
 
-            if (remainingQty.gt(remainingQty)) {
+            if (receivedQty.gt(remainingQty)) {
                 throw new BadRequestException(
                     `Received quantity exceeds remaining quantity for PO line ${line.purchaseOrderLineId}`,
               );            
@@ -203,6 +238,7 @@ export class ProcurementService {
                         lines: {
                             create: receivePurchaseOrderDto.lines.map(line => ({
                                 accountId,
+                                locationCode: receivePurchaseOrderDto.locationCode,
                                 purchaseOrderLineId: BigInt(line.purchaseOrderLineId),
                                 productId: BigInt(line.productId),
                                 receivedQty: new Prisma.Decimal(line.receivedQty),
@@ -220,12 +256,14 @@ export class ProcurementService {
                     const receivedQty = new Prisma.Decimal(line.receivedQty);
                     const unitCost = line.unitCost ? new Prisma.Decimal(line.unitCost) : undefined;
                     const productId = BigInt(line.productId);
+                    const locationCode = receivePurchaseOrderDto.locationCode;
                     
                     const poLine = await tx.purchaseOrderLine.findFirst( {
                         where: { 
                             id: poLineId, 
                             accountId,
-                            purchaseOrderId: purchaseOrder.id 
+                            purchaseOrderId: purchaseOrder.id,
+                            locationCode
                         },
                     });
 
@@ -313,8 +351,12 @@ export class ProcurementService {
                     productId,
                     purchaseOrder: {
                         accountId,
+                        locationCode,
                         status: {
-                            in: ['submitted', 'partially_received']
+                            in: [
+                                PurchaseOrderStatus.submitted, 
+                                PurchaseOrderStatus.partially_received
+                            ]
                         },
                     },
                 },
@@ -365,5 +407,4 @@ export class ProcurementService {
             }
         }
     }
-
 

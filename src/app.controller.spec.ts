@@ -15,8 +15,14 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Welcome to Nventory Boss!"', () => {
-      expect(appController.getHello()).toBe('<h1>Welcome to Nventory Boss!</h1>');
+    it('should return app status feedback', () => {
+      expect(appController.getHello()).toEqual({
+        app: 'Nventory Boss',
+        status: 'running',
+        version: '0.0.3',
+        uptime: expect.any(Number),
+        timestamp: expect.any(String),
+      });
     });
   });
 });

@@ -253,6 +253,7 @@ model PurchaseOrder {
   accountId   BigInt
   vendorId    BigInt
   poNumber    String
+  locationCode String             @default("MAIN")
   status      PurchaseOrderStatus @default(draft)
   orderedAt   DateTime?
   expectedAt  DateTime?

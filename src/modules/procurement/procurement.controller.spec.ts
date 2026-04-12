@@ -2,9 +2,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProcurementService } from './procurement.service';
 import { ProcurementController } from './procurement.controller';
 import { RecommendationConversionService } from 'src/modules/procurement/services/recommendation-conversion.service';
+import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
+import type { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
 
 describe('ProcurementController', () => {
   let controller: ProcurementController;
+
+  const identity: RequestIdentity = {
+    userId: 10n,
+    accountId: 1n,
+    email: 'test@example.com',
+  };
 
   const procurementServiceMock = {
     createPurchaseOrder: jest.fn(),
@@ -20,13 +28,13 @@ describe('ProcurementController', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProcurementController],
       providers: [
-        { 
-          provide: ProcurementService, 
-          useValue: procurementServiceMock 
+        {
+          provide: ProcurementService,
+          useValue: procurementServiceMock,
         },
         {
           provide: RecommendationConversionService,
@@ -40,6 +48,52 @@ describe('ProcurementController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('calls createPurchaseOrder with accountId from identity and dto', async () => {
+    const createdPurchaseOrder = {
+      id: 10n,
+      accountId: 1n,
+      status: 'draft',
+    };
+
+    const createPurchaseOrderDto = {
+      vendorId: '5',
+      lines: [],
+    };
+
+    procurementServiceMock.createPurchaseOrder.mockResolvedValue(
+      createdPurchaseOrder,
+    );
+
+    const result = await controller.createPurchaseOrder(
+      identity,
+      createPurchaseOrderDto as any,
+    );
+
+    expect(procurementServiceMock.createPurchaseOrder).toHaveBeenCalledWith({
+      accountId: 1n,
+      createPurchaseOrderDto,
+    });
+
+    expect(result).toEqual(createdPurchaseOrder);
+  });
+
+  it('calls findAllPurchaseOrders with accountId from identity', async () => {
+    const purchaseOrders = [
+      { id: 10n, accountId: 1n, status: 'draft' },
+      { id: 11n, accountId: 1n, status: 'submitted' },
+    ];
+
+    procurementServiceMock.findAllPurchaseOrders.mockResolvedValue(purchaseOrders);
+
+    const result = await controller.findAllPurchaseOrders(identity);
+
+    expect(procurementServiceMock.findAllPurchaseOrders).toHaveBeenCalledWith(
+      1n,
+    );
+
+    expect(result).toEqual(purchaseOrders);
   });
 
   it('calls convertRecommendations with accountId from identity and recommendationIds from dto', async () => {
@@ -61,10 +115,9 @@ describe('ProcurementController', () => {
       convertResult,
     );
 
-    const identity = { accountId: '1' };
     const dto = { recommendationIds: ['101', '102'] };
 
-    const result = await controller.convertRecommendations(identity as any, dto);
+    const result = await controller.convertRecommendations(identity, dto);
 
     expect(
       recommendationConversionServiceMock.convertRecommendations,
@@ -105,10 +158,9 @@ describe('ProcurementController', () => {
       previewResult,
     );
 
-    const identity = { accountId: '1' };
     const dto = { recommendationIds: ['101'] };
 
-    const result = await controller.previewRecommendations(identity as any, dto);
+    const result = await controller.previewRecommendations(identity, dto);
 
     expect(
       recommendationConversionServiceMock.previewRecommendations,
@@ -118,5 +170,107 @@ describe('ProcurementController', () => {
     });
 
     expect(result).toEqual(previewResult);
+  });
+
+  it('calls submitPurchaseOrder with accountId from identity and route id', async () => {
+    const submittedPurchaseOrder = {
+      id: 5n,
+      accountId: 1n,
+      status: 'submitted',
+    };
+
+    procurementServiceMock.submitPurchaseOrder.mockResolvedValue(
+      submittedPurchaseOrder,
+    );
+
+    const result = await controller.submitPurchaseOrder(identity, '5');
+
+    expect(procurementServiceMock.submitPurchaseOrder).toHaveBeenCalledWith(
+      1n,
+      '5',
+    );
+    expect(result).toEqual(submittedPurchaseOrder);
+  });
+
+  it('receives part of a purchase order and sets status to partially_received', async () => {
+    const receivedPurchaseOrder = {
+      id: 5n,
+      accountId: 1n,
+      status: 'partially_received',
+      lines: [
+        {
+          id: 10n,
+          productId: 11n,
+          orderedQty: 10,
+          receivedQty: 5,
+        },
+      ],
+    };
+    const dto: ReceivePurchaseOrderDto = {
+      locationCode: 'MAIN',
+      receivedAt: '2026-04-12T12:00:00.000Z',
+      lines: [
+        {
+          purchaseOrderLineId: '10',
+          productId: '11',
+          receivedQty: '5',
+        },
+      ],
+    };
+
+    procurementServiceMock.receivePurchaseOrder.mockResolvedValue(
+      receivedPurchaseOrder,
+    );
+
+    const result = await controller.receivePurchaseOrder(identity, '5', dto);
+
+    expect(procurementServiceMock.receivePurchaseOrder).toHaveBeenCalledWith(
+      1n,
+      '5',
+      dto,
+    );
+    expect(result).toEqual(receivedPurchaseOrder);
+  });
+
+  it('receives all quantities and sets status to received', async () => {
+    const receivedPurchaseOrder = {
+      id: 5n,
+      accountId: 1n,
+      status: 'received',
+      lines: [
+        {
+          id: 10n,
+          productId: 11n,
+          orderedQty: 10,
+          receivedQty: 10,
+        },
+      ],
+    };
+
+    const dto: ReceivePurchaseOrderDto = {
+      locationCode: 'MAIN',
+      receivedAt: '2026-04-12T12:00:00.000Z',
+      lines: [
+        {
+          purchaseOrderLineId: '10',
+          productId: '11',
+          receivedQty: '10',
+        },
+      ],
+    };
+
+    procurementServiceMock.receivePurchaseOrder.mockResolvedValue(
+      receivedPurchaseOrder,
+    );
+
+    const result = await controller.receivePurchaseOrder(identity, '5', dto);
+
+    expect(procurementServiceMock.receivePurchaseOrder).toHaveBeenCalledWith(
+      1n,
+      '5',
+      dto,
+    );
+
+    expect(result).toEqual(receivedPurchaseOrder);
   });  
 });

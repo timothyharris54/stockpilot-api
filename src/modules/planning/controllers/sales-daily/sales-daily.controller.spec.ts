@@ -8,10 +8,6 @@ import { PrismaService } from '../../../../common/prisma/prisma.service';
 
 describe('SalesDailyController', () => {
   let controller: SalesDailyController;
-  let salesDailyService: SalesDailyService;
-  let procurementService: ProcurementService;
-  let inventoryService: InventoryService;
-  let planningSettingsService: PlanningSettingsService;
 
   const prismaMock = {};
 
@@ -20,24 +16,24 @@ describe('SalesDailyController', () => {
       controllers: [SalesDailyController],
       providers: [
         SalesDailyService,
-        { 
-          provide: PrismaService, 
-          useValue: { prismaMock } 
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
         ProcurementService,
-        { 
-          provide: PrismaService, 
-          useValue: { prismaMock } 
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
         PlanningSettingsService,
-        { 
-          provide: PrismaService, 
-          useValue: { prismaMock } 
-        },  
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
+        },
         InventoryService,
-        { 
-          provide: PrismaService, 
-          useValue: { prismaMock } 
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
       ],
     }).compile();

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
   IsDateString,
   IsNotEmpty,
@@ -30,10 +31,6 @@ export class ReceivePurchaseOrderLineDto {
 }
 
 export class ReceivePurchaseOrderDto {
-  @IsString()
-  @IsNotEmpty()
-  locationCode!: string;
-
   @IsDateString()
   receivedAt!: string;
 
@@ -42,6 +39,7 @@ export class ReceivePurchaseOrderDto {
   notes?: string;
 
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => ReceivePurchaseOrderLineDto)
   lines!: ReceivePurchaseOrderLineDto[];

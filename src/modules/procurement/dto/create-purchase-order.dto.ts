@@ -40,6 +40,11 @@ export class CreatePurchaseOrderDto {
   @MaxLength(50)
   poNumber!: string;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  locationCode?: string;
+
   @IsOptional()
   @IsDateString()
   expectedAt?: string;

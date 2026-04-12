@@ -6,6 +6,7 @@ import { VendorProductSelectorService } from 'src/modules/procurement/services/v
 describe('RecommendationConversionService (integration)', () => {
   let prisma: PrismaService;
   let service: RecommendationConversionService;
+  let createdAccountIds: bigint[];
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -22,16 +23,20 @@ describe('RecommendationConversionService (integration)', () => {
     await prisma.$connect();
   });
 
-  beforeEach(async () => {
-    await prisma.reorderRecommendation.deleteMany();
-    await prisma.receiptLine.deleteMany();
-    await prisma.receipt.deleteMany();
-    await prisma.purchaseOrderLine.deleteMany();
-    await prisma.purchaseOrder.deleteMany();
-    await prisma.vendorProduct.deleteMany();
-    await prisma.vendor.deleteMany();
-    await prisma.product.deleteMany();
-    await prisma.account.deleteMany();
+  beforeEach(() => {
+    createdAccountIds = [];
+  });
+
+  afterEach(async () => {
+    if (createdAccountIds.length > 0) {
+      await prisma.account.deleteMany({
+        where: {
+          id: {
+            in: createdAccountIds,
+          },
+        },
+      });
+    }
   });
 
   afterAll(async () => {
@@ -44,6 +49,7 @@ describe('RecommendationConversionService (integration)', () => {
         name: 'Procurement Integration Account',
       },
     });
+    createdAccountIds.push(account.id);
 
     const vendor = await prisma.vendor.create({
       data: {
@@ -171,12 +177,14 @@ describe('RecommendationConversionService (integration)', () => {
         name: 'Procurement Account A',
       },
     });
+    createdAccountIds.push(accountA.id);
 
     const accountB = await prisma.account.create({
       data: {
         name: 'Procurement Account B',
       },
     });
+    createdAccountIds.push(accountB.id);
 
     const vendorA = await prisma.vendor.create({
       data: {
@@ -284,6 +292,11 @@ describe('RecommendationConversionService (integration)', () => {
     ]);
 
     const accounts = await prisma.account.findMany({
+      where: {
+        id: {
+          in: [accountA.id, accountB.id],
+        },
+      },
       orderBy: {
         id: 'asc',
       },

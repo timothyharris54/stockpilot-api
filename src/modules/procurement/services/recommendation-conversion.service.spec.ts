@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, RecommendationStatus } from '@prisma/client';
+import { Prisma, RecommendationStatus, VendorProduct } from '@prisma/client';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { RecommendationConversionService } from './recommendation-conversion.service';
 import { VendorProductSelectorService } from './vendor-product-selector.service';
@@ -44,18 +44,20 @@ describe('RecommendationConversionService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    prismaMock.$transaction.mockImplementation(async (callback) => {
-      return callback(txMock);
-    });
+    prismaMock.$transaction.mockImplementation(
+      (callback: (tx: typeof txMock) => unknown) => callback(txMock),
+    );
     txMock.reorderRecommendation.findMany.mockImplementation(
       prismaMock.reorderRecommendation.findMany,
     );
     txMock.vendorProduct.findMany.mockImplementation(
       prismaMock.vendorProduct.findMany,
     );
-    vendorProductSelectorMock.select.mockImplementation((vendorProducts) => {
-      return vendorProducts[0] ?? null;
-    });
+    vendorProductSelectorMock.select.mockImplementation(
+      (vendorProducts: VendorProduct[]) => {
+        return vendorProducts[0] ?? null;
+      },
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -269,7 +271,7 @@ describe('RecommendationConversionService', () => {
             purchaseOrderId: 9001n,
             purchaseOrderLineId: 9101n,
             finalQty: new Prisma.Decimal(12),
-            convertedAt: expect.any(Date),
+            convertedAt: expect.any(Date) as Date,
           },
         },
       );
@@ -291,7 +293,7 @@ describe('RecommendationConversionService', () => {
             purchaseOrderId: 9001n,
             purchaseOrderLineId: 9102n,
             finalQty: new Prisma.Decimal(12),
-            convertedAt: expect.any(Date),
+            convertedAt: expect.any(Date) as Date,
           },
         },
       );
@@ -505,7 +507,7 @@ describe('RecommendationConversionService', () => {
             purchaseOrderId: 9001n,
             purchaseOrderLineId: 9101n,
             finalQty: new Prisma.Decimal(12),
-            convertedAt: expect.any(Date),
+            convertedAt: expect.any(Date) as Date,
           },
         },
       );
@@ -527,7 +529,7 @@ describe('RecommendationConversionService', () => {
             purchaseOrderId: 9002n,
             purchaseOrderLineId: 9102n,
             finalQty: new Prisma.Decimal(12),
-            convertedAt: expect.any(Date),
+            convertedAt: expect.any(Date) as Date,
           },
         },
       );

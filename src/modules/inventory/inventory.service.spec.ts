@@ -7,28 +7,22 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 describe('InventoryService', () => {
   let service: InventoryService;
-  let productsService: ProductsService;
-  let controller: InventoryController;  
-  let productsController: ProductsController;
 
   const prismaMock = {};
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [
-        InventoryController, 
-        ProductsController
-      ],
+      controllers: [InventoryController, ProductsController],
       providers: [
         InventoryService,
-        { 
-          provide: PrismaService, 
-          useValue: prismaMock
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
         ProductsService,
-        { 
-          provide: PrismaService, 
-          useValue: prismaMock
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
       ],
     }).compile();

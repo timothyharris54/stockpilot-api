@@ -85,10 +85,15 @@ describe('RecommendationsService', () => {
         reviewedAt: new Date(),
       };
 
-      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.reorderRecommendation.findUnique.mockResolvedValue(reviewedRow);
+      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      prismaMock.reorderRecommendation.findUnique.mockResolvedValue(
+        reviewedRow,
+      );
 
-      const result = await service.review(10n, '4');
+      const result: Awaited<ReturnType<RecommendationsService['review']>> =
+        await service.review(10n, '4');
 
       expect(prismaMock.reorderRecommendation.updateMany).toHaveBeenCalledWith({
         where: {
@@ -100,7 +105,7 @@ describe('RecommendationsService', () => {
         },
         data: {
           status: RecommendationStatus.reviewed,
-          reviewedAt: expect.any(Date),
+          reviewedAt: expect.any(Date) as Date,
         },
       });
 
@@ -112,15 +117,23 @@ describe('RecommendationsService', () => {
     });
 
     it('throws BadRequestException for invalid recommendation id', async () => {
-      await expect(service.review(10n, 'abc')).rejects.toThrow(BadRequestException);
+      await expect(service.review(10n, 'abc')).rejects.toThrow(
+        BadRequestException,
+      );
 
-      expect(prismaMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
+      expect(
+        prismaMock.reorderRecommendation.updateMany,
+      ).not.toHaveBeenCalled();
       expect(prismaMock.reorderRecommendation.findFirst).not.toHaveBeenCalled();
-      expect(prismaMock.reorderRecommendation.findUnique).not.toHaveBeenCalled();
+      expect(
+        prismaMock.reorderRecommendation.findUnique,
+      ).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when recommendation is not found for the account', async () => {
-      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({ count: 0 });
+      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 0,
+      });
       prismaMock.reorderRecommendation.findFirst.mockResolvedValue(null);
 
       await expect(service.review(10n, '4')).rejects.toThrow(NotFoundException);
@@ -138,13 +151,17 @@ describe('RecommendationsService', () => {
     });
 
     it('throws BadRequestException when recommendation is not in open status', async () => {
-      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({ count: 0 });
+      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 0,
+      });
       prismaMock.reorderRecommendation.findFirst.mockResolvedValue({
         id: 4n,
         status: RecommendationStatus.converted,
       });
 
-      await expect(service.review(10n, '4')).rejects.toThrow(BadRequestException);
+      await expect(service.review(10n, '4')).rejects.toThrow(
+        BadRequestException,
+      );
       await expect(service.review(10n, '4')).rejects.toThrow(
         'Recommendation cannot be reviewed from status converted.',
       );
@@ -160,10 +177,15 @@ describe('RecommendationsService', () => {
         dismissedAt: new Date(),
       };
 
-      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.reorderRecommendation.findUnique.mockResolvedValue(dismissedRow);
+      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      prismaMock.reorderRecommendation.findUnique.mockResolvedValue(
+        dismissedRow,
+      );
 
-      const result = await service.dismiss(10n, '5');
+      const result: Awaited<ReturnType<RecommendationsService['dismiss']>> =
+        await service.dismiss(10n, '5');
 
       expect(prismaMock.reorderRecommendation.updateMany).toHaveBeenCalledWith({
         where: {
@@ -175,7 +197,7 @@ describe('RecommendationsService', () => {
         },
         data: {
           status: RecommendationStatus.dismissed,
-          dismissedAt: expect.any(Date),
+          dismissedAt: expect.any(Date) as Date,
         },
       });
 
@@ -194,10 +216,15 @@ describe('RecommendationsService', () => {
         dismissedAt: new Date(),
       };
 
-      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.reorderRecommendation.findUnique.mockResolvedValue(dismissedRow);
+      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      prismaMock.reorderRecommendation.findUnique.mockResolvedValue(
+        dismissedRow,
+      );
 
-      const result = await service.dismiss(10n, '6');
+      const result: Awaited<ReturnType<RecommendationsService['dismiss']>> =
+        await service.dismiss(10n, '6');
 
       expect(prismaMock.reorderRecommendation.updateMany).toHaveBeenCalledWith({
         where: {
@@ -209,7 +236,7 @@ describe('RecommendationsService', () => {
         },
         data: {
           status: RecommendationStatus.dismissed,
-          dismissedAt: expect.any(Date),
+          dismissedAt: expect.any(Date) as Date,
         },
       });
 
@@ -217,18 +244,28 @@ describe('RecommendationsService', () => {
     });
 
     it('throws BadRequestException for invalid recommendation id', async () => {
-      await expect(service.dismiss(10n, 'bad-id')).rejects.toThrow(BadRequestException);
+      await expect(service.dismiss(10n, 'bad-id')).rejects.toThrow(
+        BadRequestException,
+      );
 
-      expect(prismaMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
+      expect(
+        prismaMock.reorderRecommendation.updateMany,
+      ).not.toHaveBeenCalled();
       expect(prismaMock.reorderRecommendation.findFirst).not.toHaveBeenCalled();
-      expect(prismaMock.reorderRecommendation.findUnique).not.toHaveBeenCalled();
+      expect(
+        prismaMock.reorderRecommendation.findUnique,
+      ).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when recommendation is not found for the account', async () => {
-      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({ count: 0 });
+      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 0,
+      });
       prismaMock.reorderRecommendation.findFirst.mockResolvedValue(null);
 
-      await expect(service.dismiss(10n, '5')).rejects.toThrow(NotFoundException);
+      await expect(service.dismiss(10n, '5')).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(prismaMock.reorderRecommendation.findFirst).toHaveBeenCalledWith({
         where: {
@@ -243,13 +280,17 @@ describe('RecommendationsService', () => {
     });
 
     it('throws BadRequestException when recommendation is in a terminal status', async () => {
-      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({ count: 0 });
+      prismaMock.reorderRecommendation.updateMany.mockResolvedValue({
+        count: 0,
+      });
       prismaMock.reorderRecommendation.findFirst.mockResolvedValue({
         id: 5n,
         status: RecommendationStatus.converted,
       });
 
-      await expect(service.dismiss(10n, '5')).rejects.toThrow(BadRequestException);
+      await expect(service.dismiss(10n, '5')).rejects.toThrow(
+        BadRequestException,
+      );
       await expect(service.dismiss(10n, '5')).rejects.toThrow(
         'Recommendation cannot be dismissed from status converted.',
       );

@@ -8,6 +8,7 @@ import { InventoryPlanningService } from 'src/modules/inventory/services/invento
 describe('ReplenishmentEngineService (integration)', () => {
   let prisma: PrismaService;
   let service: ReplenishmentEngineService;
+  let createdAccountIds: bigint[];
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -26,13 +27,20 @@ describe('ReplenishmentEngineService (integration)', () => {
     await prisma.$connect();
   });
 
-  beforeEach(async () => {
-    await prisma.reorderRecommendation.deleteMany();
-    await prisma.replenishmentRule.deleteMany();
-    await prisma.salesDaily.deleteMany();
-    await prisma.inventoryBalance.deleteMany();
-    await prisma.product.deleteMany();
-    await prisma.account.deleteMany();
+  beforeEach(() => {
+    createdAccountIds = [];
+  });
+
+  afterEach(async () => {
+    if (createdAccountIds.length > 0) {
+      await prisma.account.deleteMany({
+        where: {
+          id: {
+            in: createdAccountIds,
+          },
+        },
+      });
+    }
   });
 
   afterAll(async () => {
@@ -40,9 +48,14 @@ describe('ReplenishmentEngineService (integration)', () => {
   });
 
   it('creates a reorder recommendation end-to-end', async () => {
+    const recentSalesDate = new Date();
+    recentSalesDate.setUTCDate(recentSalesDate.getUTCDate() - 10);
+    recentSalesDate.setUTCHours(0, 0, 0, 0);
+
     const account = await prisma.account.create({
       data: { name: 'Integration Account' },
     });
+    createdAccountIds.push(account.id);
 
     const product = await prisma.product.create({
       data: {
@@ -67,7 +80,7 @@ describe('ReplenishmentEngineService (integration)', () => {
       data: {
         accountId: account.id,
         productId: product.id,
-        salesDate: new Date('2026-03-01T00:00:00.000Z'),
+        salesDate: recentSalesDate,
         unitsSold: '12.00', // 12 units over 30 days → avg = 0.4
         revenue: '120.00',
       },

@@ -6,11 +6,11 @@ import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identi
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 
 @Controller()
+@UseGuards(JwtAuthGuard)
 
 export class SalesDailyController {
     constructor(private readonly salesDailyService: SalesDailyService) {}
 
-    @UseGuards(JwtAuthGuard)
     @Post('sales-daily/rebuild')
     async rebuildForAccount(
         @CurrentIdentity() identity: RequestIdentity,
@@ -22,7 +22,6 @@ export class SalesDailyController {
             new Date(rebuildDto.to));
     }
 
-    @UseGuards(JwtAuthGuard)
     @Post('sales-daily/rebuild/product/:productId')
     async rebuildForProduct(
             @CurrentIdentity() identity: RequestIdentity,

@@ -148,9 +148,9 @@ describe('RecommendationConversionService (integration)', () => {
     });
 
     expect(purchaseOrders).toHaveLength(2);
-    expect(purchaseOrders[0].poNumber).toBe('PO-000001');
+    expect(purchaseOrders[0].poNumber).toBe('PO-001000');
     expect(purchaseOrders[0].vendorId).toBe(vendor.id);
-    expect(purchaseOrders[1].poNumber).toBe('PO-000002');
+    expect(purchaseOrders[1].poNumber).toBe('PO-001001');
     expect(purchaseOrders[1].vendorId).toBe(vendor.id);
 
     expect(purchaseOrders[0].lines).toHaveLength(1);
@@ -168,7 +168,7 @@ describe('RecommendationConversionService (integration)', () => {
       },
     });
 
-    expect(refreshedAccount.nextPurchaseOrderNumber).toBe(3);
+    expect(refreshedAccount.nextPurchaseOrderNumber).toBe(1002);
   });
 
   it('maintains an independent PO sequence per account', async () => {
@@ -283,11 +283,11 @@ describe('RecommendationConversionService (integration)', () => {
     expect(purchaseOrders).toEqual([
       {
         accountId: accountA.id,
-        poNumber: 'PO-000001',
+        poNumber: 'PO-001000',
       },
       {
         accountId: accountB.id,
-        poNumber: 'PO-000001',
+        poNumber: 'PO-001000',
       },
     ]);
 
@@ -309,11 +309,11 @@ describe('RecommendationConversionService (integration)', () => {
     expect(accounts).toEqual([
       {
         id: accountA.id,
-        nextPurchaseOrderNumber: 2,
+        nextPurchaseOrderNumber: 1001,
       },
       {
         id: accountB.id,
-        nextPurchaseOrderNumber: 2,
+        nextPurchaseOrderNumber: 1001,
       },
     ]);
   });

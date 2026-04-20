@@ -15,7 +15,7 @@ export class ReplenishmentEngineService {
   async generateForProduct(
     accountId: bigint,
     productId: bigint,
-    locationCode = 'MAIN',
+    locationCode: string,
     dryRun = false,
   ) {
     const rule = await this.prisma.replenishmentRule.findUnique({
@@ -141,7 +141,7 @@ export class ReplenishmentEngineService {
 
   async generateForAccount(
         accountId: bigint, 
-        locationCode = 'MAIN',
+        locationCode: string,
         dryRun = false,
       ) {
     const rules = await this.prisma.replenishmentRule.findMany({

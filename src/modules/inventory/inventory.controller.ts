@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { InventoryService } from './inventory.service';
-import { OpeningBalanceDto } from './dto/opening-balance.dto';
+import { Body, Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
+import { InventoryService } from 'src/modules/inventory/inventory.service';
+import { OpeningBalanceDto } from 'src/modules/inventory/dto/opening-balance.dto';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
 import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-
+import { GetLedgerQueryDto } from 'src/modules/inventory/dto/get-ledger-query.dto';
+import { GetBalanceQueryDto } from 'src/modules/inventory/dto/get-balance-query.dto';
+import { CreateReservationDto } from 'src/modules/inventory/dto/create-reservation.dto';
 
 @Controller('inventory')
 export class InventoryController {
@@ -27,9 +29,11 @@ export class InventoryController {
   @Get('balances')
     async getBalances(
       @CurrentIdentity() identity: RequestIdentity,
+      @Query() filters: GetBalanceQueryDto,
     ) {
     return this.inventoryService.getBalances(
-        BigInt(identity.accountId)
+        identity.accountId, 
+        filters
       );
     }
 
@@ -37,7 +41,71 @@ export class InventoryController {
   @Get('ledger')
     async getLedger(
       @CurrentIdentity() identity: RequestIdentity,
-    ) {
-      return this.inventoryService.getLedger(BigInt(identity.accountId));
+      @Query() query: GetLedgerQueryDto,
+    ) 
+    {
+      return this.inventoryService.getLedger(identity.accountId, query);   
     }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('adjustments')
+    async postAdjustments(
+      @CurrentIdentity() identity: RequestIdentity,
+      @Body() adjustmentsDto: any
+    ) {
+      return this.inventoryService.postAdjustmentEvent(
+        {
+          accountId: BigInt(identity.accountId), 
+          adjustmentsDto
+        }
+      );
+    }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('transfers')
+    async postTransfers(
+      @CurrentIdentity() identity: RequestIdentity,
+      @Body() transfersDto: any
+    ) {
+      return this.inventoryService.postTransferEvent(
+        {
+          accountId: BigInt(identity.accountId), 
+          transfersDto
+        }
+      );
+    }
+
+  @Post('reservations')
+  async createReservation(
+    @CurrentIdentity() identity: RequestIdentity,
+    @Body() dto: CreateReservationDto,
+  ) {
+    return this.inventoryService.createReservation({
+      accountId: BigInt(identity.accountId),
+      createReservationDto: dto,
+    });
+  }
+
+  @Post('reservations/:id/release')
+  async releaseReservation(
+    @CurrentIdentity() identity: RequestIdentity,
+    @Param('id') id: string,
+  ) {
+    return this.inventoryService.releaseReservation({
+      accountId: identity.accountId,
+      reservationId: id,
+    });
+  }
+
+  @Post('reservations/:id/consume')
+  async consumeReservation(
+    @CurrentIdentity() identity: RequestIdentity,
+    @Param('id') id: string,
+  ) {
+    return this.inventoryService.consumeReservation({
+      accountId: identity.accountId,
+      reservationId: id,
+    });
+  }
+
 }

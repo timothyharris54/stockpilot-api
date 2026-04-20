@@ -33,10 +33,11 @@ enum InventoryEventType {
   sale
   sale_reversal
   receipt
-  adjustment_gain
-  adjustment_loss
+  adjustment
   return_resellable
   sync_correction
+  transfer_in
+  transfer_out
 }
 
 enum ReferenceType {
@@ -45,7 +46,29 @@ enum ReferenceType {
   purchase_order
   adjustment
   return_ref
+  transfer
   system
+}
+
+enum AdjustmentReasonCodes {
+  cycle_count
+  damage
+  expired
+  shrinkage
+  opening_balance
+  manual_correction
+}
+
+enum ReservationStatus {
+  active
+  released
+  consumed
+  cancelled
+}
+
+enum ReservationSourceType {
+  sales_order
+  manual
 }
 
 model Account {
@@ -68,9 +91,11 @@ model Account {
   receipts               Receipt[]
   receiptLines           ReceiptLine[]
   salesDaily             SalesDaily[]
+  inventoryReservations  InventoryReservation[]
   replenishmentRules     ReplenishmentRule[]
   reorderRecommendations ReorderRecommendation[]
   planningSettings       PlanningSettings?
+  locations              Location[]
 }
 
 model User {
@@ -109,11 +134,11 @@ model Product {
   purchaseOrderLines     PurchaseOrderLine[]
   receiptLines           ReceiptLine[]
   salesDaily             SalesDaily[]
+  inventoryReservations  InventoryReservation[]
   replenishmentRule      ReplenishmentRule?
   reorderRecommendations ReorderRecommendation[]
 
   @@unique([accountId, sku])
-
 }
 
 model Order {
@@ -249,19 +274,19 @@ model VendorProduct {
 }
 
 model PurchaseOrder {
-  id          BigInt              @id @default(autoincrement())
-  accountId   BigInt
-  vendorId    BigInt
-  poNumber    String
-  locationCode String             @default("MAIN")
-  status      PurchaseOrderStatus @default(draft)
-  orderedAt   DateTime?
-  expectedAt  DateTime?
-  submittedAt DateTime?
-  cancelledAt DateTime?
-  notes       String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id           BigInt              @id @default(autoincrement())
+  accountId    BigInt
+  vendorId     BigInt
+  poNumber     String
+  locationCode String              @default("MAIN")
+  status       PurchaseOrderStatus @default(draft)
+  orderedAt    DateTime?
+  expectedAt   DateTime?
+  submittedAt  DateTime?
+  cancelledAt  DateTime?
+  notes        String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   account         Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
   vendor          Vendor                  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
@@ -424,4 +449,44 @@ model PlanningSettings {
   updatedAt DateTime @updatedAt
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model Location {
+  id        BigInt   @id @default(autoincrement())
+  accountId BigInt
+  code      String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, code])
+  @@index([accountId, isActive])
+}
+model InventoryReservation {
+  id               BigInt   @id @default(autoincrement())
+  accountId        BigInt
+  productId        BigInt
+  locationCode     String
+
+  sourceType       ReservationSourceType
+  sourceId         BigInt
+
+  reservedQty      Decimal  @db.Decimal(12, 2)
+  status           ReservationStatus @default(active)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  releasedAt       DateTime?
+  consumedAt       DateTime?
+  notes            String?
+
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, productId, locationCode, status])
+  @@index([accountId, sourceType, sourceId])
+  @@index([accountId, status])
 }

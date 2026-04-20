@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InventoryBalanceService } from './services/inventory-balance.service';
-import { Prisma, ReferenceType, InventoryEventType, ReservationStatus, AdjustmentReasonCodes, ReservationSourceType } from '@prisma/client';
+import { Prisma, ReferenceType, InventoryEventType, ReservationStatus, ReservationSourceType } from '@prisma/client';
 import { OpeningBalanceDto } from './dto/opening-balance.dto';
 import { AdjustmentsDto } from 'src/modules/inventory/dto/adjustments.dto';
 import { TransfersDto } from 'src/modules/inventory/dto/transfers.dto';
@@ -80,7 +80,7 @@ export class InventoryService {
         });
     }
 
-    async postSaleEvent(accountId: bigint, orderLineId: bigint, locationCode: string) {
+    async postSaleEvent(accountId: bigint, orderLineId: bigint, locationCode = 'MAIN') {
         const orderLine = await this.prismaService.orderLine.findUnique({
             where: { 
                 id: orderLineId,
@@ -133,7 +133,7 @@ export class InventoryService {
         });
     }
 
-    async postSaleReversal(accountId: bigint, orderLineId: bigint, locationCode: string) {
+    async postSaleReversal(accountId: bigint, orderLineId: bigint, locationCode = 'MAIN') {
         const orderLine = await this.prismaService.orderLine.findUnique({
             where: { 
                 id: orderLineId,
@@ -265,7 +265,6 @@ export class InventoryService {
                     accountId,
                     productId: iProductId,
                     locationCode,
-                    reasonCode: reasonCode as AdjustmentReasonCodes,
                     quantityDelta: delta,
                     referenceType: ReferenceType.adjustment,    
                     externalEventKey: `adjustment:${accountId}:${iProductId}:${locationCode}:${occurred.toISOString()}:${reasonCode}`,
@@ -542,7 +541,6 @@ export class InventoryService {
                 productId: true,
                 locationCode: true,
                 eventType: true,
-                reasonCode: true,
                 quantityDelta: true,
                 unitCost: true,
                 referenceType: true,
@@ -628,7 +626,7 @@ export class InventoryService {
         const qtyAvailable = new Prisma.Decimal(balance?.qtyAvailable ?? 0);
         if (qtyAvailable.lt(reservedQty)) {
             throw new BadRequestException(
-            `Insufficient available quantity at location ${locCode} for product ${productId}. Available: ${qtyAvailable.toString()}, requested: ${reservedQty.toString()}.`,
+                `Insufficient available quantity at location ${locCode} for product ${productId}. Available: ${qtyAvailable.toString()}, requested: ${reservedQty.toString()}.`,
             );
         }
 
@@ -717,6 +715,88 @@ export class InventoryService {
         });
     }
 
+    async reserveOrderLineInventory(input: {
+            accountId: bigint;
+            orderLineId: string;
+        }) {
+        const { accountId, orderLineId } = input;
+        const iOrderLineId = this.parseRequiredBigInt(orderLineId, 'orderLineId');
+
+        const orderLine = await this.prismaService.orderLine.findFirst({
+            where: {
+                id: iOrderLineId,
+                accountId,
+            },
+            select: {
+                id: true,
+                productId: true,
+                quantity: true,
+                orderId: true,
+            },
+        });
+
+        if (!orderLine) {
+            throw new NotFoundException(`Order line ${orderLineId} not found`);
+        }
+
+        const existing = await this.prismaService.inventoryReservation.findFirst({
+            where: {
+                accountId,
+                sourceType: ReservationSourceType.sales_order_line,
+                sourceId: orderLine.id,
+                status: ReservationStatus.active,
+            },
+            select: { id: true },
+        });
+
+        if (existing) {
+            throw new BadRequestException(
+                `Active reservation already exists for order line ${orderLineId}.`,
+            );
+        }
+
+        return this.createReservation({
+            accountId,
+            createReservationDto: {
+                productId: orderLine.productId!.toString(),
+                locationCode: 'MAIN',
+                quantity: orderLine.quantity.toString(),
+                sourceType: ReservationSourceType.sales_order_line,
+                sourceId: orderLine.id.toString(),
+                notes: `Reserved for order line ${orderLine.id.toString()}`,
+            },
+        });
+    }
+
+    async releaseOrderLineReservation(input: {
+        accountId: bigint;
+        orderLineId: string;
+    }) {
+        const { accountId, orderLineId } = input;
+        const iOrderLineId = this.parseRequiredBigInt(orderLineId, 'orderLineId');
+
+        const reservation = await this.prismaService.inventoryReservation.findFirst({
+            where: {
+                accountId,
+                sourceType: ReservationSourceType.sales_order_line,
+                sourceId: iOrderLineId,
+                status: ReservationStatus.active,
+            },
+            select: { id: true },
+        });
+
+        if (!reservation) {
+            throw new NotFoundException(
+                `Active reservation for order line ${orderLineId} not found`,
+            );
+        }
+
+        return this.releaseReservation({
+            accountId,
+            reservationId: reservation.id.toString(),
+        });
+    }
+
     async consumeReservation(input: {
         accountId: bigint;
         reservationId: string;
@@ -777,6 +857,36 @@ export class InventoryService {
             return reservation;
         });
     }
+
+    async consumeOrderLineReservation(input: {
+        accountId: bigint;
+        orderLineId: string;
+    }) {
+        const { accountId, orderLineId } = input;
+        const iOrderLineId = this.parseRequiredBigInt(orderLineId, 'orderLineId');
+
+        const reservation = await this.prismaService.inventoryReservation.findFirst({
+            where: {
+                accountId,
+                sourceType: ReservationSourceType.sales_order_line,
+                sourceId: iOrderLineId,
+                status: ReservationStatus.active,
+            },
+            select: { id: true },
+        });
+
+        if (!reservation) {
+            throw new NotFoundException(
+                `Active reservation for order line ${orderLineId} not found`,
+            );
+        }
+
+        return this.consumeReservation({
+            accountId,
+            reservationId: reservation.id.toString(),
+        });
+    }
+
     private parseBigIntField(value: string, fieldName: string): bigint {
         if (value.trim() === '') {
             throw new BadRequestException(`Invalid ${fieldName} ${value}`);

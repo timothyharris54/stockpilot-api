@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Req, UseGuards} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SalesDailyService } from '../../services/sales-daily.service';
 import { RebuildSalesDailyDto } from '../../dto/rebuild-sales-daily.dto';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
@@ -7,6 +8,8 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
+@ApiTags('Planning')
+@ApiBearerAuth()
 
 export class SalesDailyController {
     constructor(private readonly salesDailyService: SalesDailyService) {}

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RecommendationConversionService } from 'src/modules/procurement/services/recommendation-conversion.service';
 import { ProcurementService } from 'src/modules/procurement/procurement.service';
 import { InventoryBalanceService } from 'src/modules/inventory/services/inventory-balance.service';
@@ -12,6 +13,8 @@ import { ConvertRecommendationsDto } from './dto/convert-recommendations.dto';
 
 @Controller('procurement')
 @UseGuards(JwtAuthGuard)
+@ApiTags('Procurement')
+@ApiBearerAuth()
 export class ProcurementController {
     constructor(
         private readonly procurementService: ProcurementService,

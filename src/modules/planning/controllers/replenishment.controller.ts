@@ -7,6 +7,7 @@ import {
   UseGuards,
   Get,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ReplenishmentEngineService } from 'src/modules/planning/services/replenishment-engine.service';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
@@ -14,6 +15,8 @@ import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identi
 
 @Controller('planning/replenishment')
 @UseGuards(JwtAuthGuard)
+@ApiTags('Planning')
+@ApiBearerAuth()
 export class ReplenishmentController {
   constructor(
     private readonly replenishmentEngineService: ReplenishmentEngineService,

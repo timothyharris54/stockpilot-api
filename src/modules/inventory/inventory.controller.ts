@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InventoryService } from 'src/modules/inventory/inventory.service';
 import { OpeningBalanceDto } from 'src/modules/inventory/dto/opening-balance.dto';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
@@ -9,10 +10,12 @@ import { GetBalanceQueryDto } from 'src/modules/inventory/dto/get-balance-query.
 import { CreateReservationDto } from 'src/modules/inventory/dto/create-reservation.dto';
 
 @Controller('inventory')
+@UseGuards(JwtAuthGuard)
+@ApiTags('Inventory')
+@ApiBearerAuth()
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  @UseGuards(JwtAuthGuard)
   @Post('opening-balance')
     async postOpeningBalance(
         @CurrentIdentity() identity: RequestIdentity,
@@ -25,7 +28,6 @@ export class InventoryController {
       );
     }
   
-  @UseGuards(JwtAuthGuard)
   @Get('balances')
     async getBalances(
       @CurrentIdentity() identity: RequestIdentity,
@@ -37,7 +39,6 @@ export class InventoryController {
       );
     }
 
-  @UseGuards(JwtAuthGuard)
   @Get('ledger')
     async getLedger(
       @CurrentIdentity() identity: RequestIdentity,
@@ -47,7 +48,6 @@ export class InventoryController {
       return this.inventoryService.getLedger(identity.accountId, query);   
     }
 
-  @UseGuards(JwtAuthGuard)
   @Post('adjustments')
     async postAdjustments(
       @CurrentIdentity() identity: RequestIdentity,
@@ -61,7 +61,6 @@ export class InventoryController {
       );
     }
 
-  @UseGuards(JwtAuthGuard)
   @Post('transfers')
     async postTransfers(
       @CurrentIdentity() identity: RequestIdentity,

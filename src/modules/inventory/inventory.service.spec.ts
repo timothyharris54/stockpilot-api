@@ -40,6 +40,11 @@ describe('InventoryService', () => {
       findUnique: jest.fn(),
     };
 
+    prismaMock.orderLine = {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+    };
+
     prismaMock.inventoryLedger = {
       findMany: jest.fn(),
       create: jest.fn(),
@@ -91,7 +96,6 @@ describe('InventoryService', () => {
         quantityDelta: new Prisma.Decimal('5'),
         eventType: InventoryEventType.adjustment,
         referenceType: ReferenceType.adjustment,
-        reasonCode: AdjustmentReasonCodes.manual_correction,
         occurredAt: new Date(occurredAt),
         notes: 'Added stock after manual count',
       });
@@ -115,7 +119,6 @@ describe('InventoryService', () => {
           accountId: 1n,
           productId: 11n,
           locationCode: 'MAIN',
-          reasonCode: AdjustmentReasonCodes.manual_correction,
           quantityDelta: new Prisma.Decimal('5'),
           referenceType: ReferenceType.adjustment,
           externalEventKey: `adjustment:1:11:MAIN:${new Date(occurredAt).toISOString()}:${AdjustmentReasonCodes.manual_correction}`,
@@ -137,7 +140,6 @@ describe('InventoryService', () => {
         quantityDelta: new Prisma.Decimal('5'),
         eventType: InventoryEventType.adjustment,
         referenceType: ReferenceType.adjustment,
-        reasonCode: AdjustmentReasonCodes.manual_correction,
         occurredAt: new Date(occurredAt),
         notes: 'Added stock after manual count',
       });
@@ -154,7 +156,6 @@ describe('InventoryService', () => {
         quantityDelta: new Prisma.Decimal('-3'),
         eventType: InventoryEventType.adjustment,
         referenceType: ReferenceType.adjustment,
-        reasonCode: AdjustmentReasonCodes.damage,
         occurredAt: new Date(occurredAt),
         notes: 'Damaged units removed',
       });
@@ -176,7 +177,6 @@ describe('InventoryService', () => {
           accountId: 1n,
           productId: 11n,
           locationCode: 'MAIN',
-          reasonCode: AdjustmentReasonCodes.damage,
           quantityDelta: new Prisma.Decimal('-3'),
           referenceType: ReferenceType.adjustment,
           externalEventKey: `adjustment:1:11:MAIN:${new Date(occurredAt).toISOString()}:${AdjustmentReasonCodes.damage}`,
@@ -1670,5 +1670,276 @@ describe('InventoryService', () => {
         inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct,
       ).not.toHaveBeenCalled();
     });
-  });  
+  }); 
+  
+  describe('reserveOrderLineInventory', () => {
+    it('creates a reservation for an order line', async () => {
+      jest.spyOn(service, 'createReservation').mockResolvedValue({
+        id: 701n,
+        accountId: 1n,
+        productId: 11n,
+        locationCode: 'MAIN',
+        reservedQty: new Prisma.Decimal('3'),
+        sourceType: 'sales_order_line',
+        sourceId: 5001n,
+        status: 'active',
+        notes: 'Reserved for order line 5001',
+      } as any);
+
+      prismaMock.orderLine.findFirst.mockResolvedValue({
+        id: 5001n,
+        accountId: 1n,
+        orderId: 4001n,
+        productId: 11n,
+        quantity: new Prisma.Decimal('3'),
+        locationCode: 'MAIN',
+      });
+
+      prismaMock.inventoryReservation.findFirst.mockResolvedValue(null);
+
+      const result = await service.reserveOrderLineInventory({
+        accountId: 1n,
+        orderLineId: '5001',
+      });
+
+      expect(prismaMock.orderLine.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 5001n,
+          accountId: 1n,
+        },
+        select: {
+          id: true,
+          productId: true,
+          quantity: true,
+          orderId: true,
+        },
+      });
+
+      expect(prismaMock.inventoryReservation.findFirst).toHaveBeenCalledWith({
+        where: {
+          accountId: 1n,
+          sourceType: 'sales_order_line',
+          sourceId: 5001n,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+
+      expect(service.createReservation).toHaveBeenCalledWith({
+        accountId: 1n,
+        createReservationDto: {
+          productId: '11',
+          locationCode: 'MAIN',
+          quantity: '3',
+          sourceType: 'sales_order_line',
+          sourceId: '5001',
+          notes: 'Reserved for order line 5001',
+        },
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 701n,
+          status: 'active',
+        }),
+      );
+    });
+
+    it('rejects invalid orderLineId', async () => {
+      const promise = service.reserveOrderLineInventory({
+        accountId: 1n,
+        orderLineId: 'abc',
+      });
+
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toThrow('Invalid orderLineId abc');
+
+      expect(prismaMock.orderLine.findFirst).not.toHaveBeenCalled();
+      expect(prismaMock.inventoryReservation.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing order line', async () => {
+      prismaMock.orderLine.findFirst.mockResolvedValue(null);
+
+      const promise = service.reserveOrderLineInventory({
+        accountId: 1n,
+        orderLineId: '5001',
+      });
+
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toThrow('Order line 5001 not found');
+
+      expect(prismaMock.inventoryReservation.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('rejects duplicate active reservation for order line', async () => {
+      const createReservationSpy = jest.spyOn(service, 'createReservation');
+
+      prismaMock.orderLine.findFirst.mockResolvedValue({
+        id: 5001n,
+        accountId: 1n,
+        orderId: 4001n,
+        productId: 11n,
+        quantity: new Prisma.Decimal('3'),
+        locationCode: 'MAIN',
+      });
+
+      prismaMock.inventoryReservation.findFirst.mockResolvedValue({
+        id: 801n,
+      });
+
+      const promise = service.reserveOrderLineInventory({
+        accountId: 1n,
+        orderLineId: '5001',
+      });
+
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toThrow(
+        'Active reservation already exists for order line 5001.',
+      );
+
+      expect(createReservationSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('releaseOrderLineReservation', () => {
+    it('releases active reservation for an order line', async () => {
+      jest.spyOn(service, 'releaseReservation').mockResolvedValue({
+        id: 901n,
+        status: 'released',
+      } as any);
+
+      prismaMock.inventoryReservation.findFirst.mockResolvedValue({
+        id: 901n,
+      });
+
+      const result = await service.releaseOrderLineReservation({
+        accountId: 1n,
+        orderLineId: '5001',
+      });
+
+      expect(prismaMock.inventoryReservation.findFirst).toHaveBeenCalledWith({
+        where: {
+          accountId: 1n,
+          sourceType: 'sales_order_line',
+          sourceId: 5001n,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+
+      expect(service.releaseReservation).toHaveBeenCalledWith({
+        accountId: 1n,
+        reservationId: '901',
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 901n,
+          status: 'released',
+        }),
+      );
+    });
+
+    it('rejects invalid orderLineId', async () => {
+      const promise = service.releaseOrderLineReservation({
+        accountId: 1n,
+        orderLineId: 'abc',
+      });
+
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toThrow('Invalid orderLineId abc');
+
+      expect(prismaMock.inventoryReservation.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing active reservation for order line', async () => {
+      const releaseReservationSpy = jest.spyOn(service, 'releaseReservation');
+
+      prismaMock.inventoryReservation.findFirst.mockResolvedValue(null);
+
+      const promise = service.releaseOrderLineReservation({
+        accountId: 1n,
+        orderLineId: '5001',
+      });
+
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toThrow(
+        'Active reservation for order line 5001 not found',
+      );
+
+      expect(releaseReservationSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('consumeOrderLineReservation', () => {
+    it('consumes active reservation for an order line', async () => {
+      jest.spyOn(service, 'consumeReservation').mockResolvedValue({
+        id: 1001n,
+        status: 'consumed',
+      } as any);
+
+      prismaMock.inventoryReservation.findFirst.mockResolvedValue({
+        id: 1001n,
+      });
+
+      const result = await service.consumeOrderLineReservation({
+        accountId: 1n,
+        orderLineId: '5001',
+      });
+
+      expect(prismaMock.inventoryReservation.findFirst).toHaveBeenCalledWith({
+        where: {
+          accountId: 1n,
+          sourceType: 'sales_order_line',
+          sourceId: 5001n,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+
+      expect(service.consumeReservation).toHaveBeenCalledWith({
+        accountId: 1n,
+        reservationId: '1001',
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 1001n,
+          status: 'consumed',
+        }),
+      );
+    });
+
+    it('rejects invalid orderLineId', async () => {
+      const promise = service.consumeOrderLineReservation({
+        accountId: 1n,
+        orderLineId: 'abc',
+      });
+
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toThrow('Invalid orderLineId abc');
+
+      expect(prismaMock.inventoryReservation.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing active reservation for order line', async () => {
+      const consumeReservationSpy = jest.spyOn(service, 'consumeReservation');
+
+      prismaMock.inventoryReservation.findFirst.mockResolvedValue(null);
+
+      const promise = service.consumeOrderLineReservation({
+        accountId: 1n,
+        orderLineId: '5001',
+      });
+
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toThrow(
+        'Active reservation for order line 5001 not found',
+      );
+
+      expect(consumeReservationSpy).not.toHaveBeenCalled();
+    });
+  });
+
 });

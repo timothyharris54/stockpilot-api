@@ -7,15 +7,22 @@ describe('OrdersService', () => {
   let service: OrdersService;
 
   const prismaMock = {};
+  const inventoryServiceMock = {
+    postSaleEvent: jest.fn(),
+    postSaleReversal: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
-        InventoryService,
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: InventoryService,
+          useValue: inventoryServiceMock,
         },
       ],
     }).compile();

@@ -18,7 +18,7 @@ export class InventoryPlanningService {
     async getPlanningPosition(
         accountId: bigint,
         productId: bigint,
-        locationCode = 'MAIN',
+        locationCode: string,
     ): Promise<InventoryPlanningPosition> {
         const balance = await this.prisma.inventoryBalance.findUnique({
             where: {

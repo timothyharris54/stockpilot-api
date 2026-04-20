@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProcurementService } from './procurement.service';
 import { ProcurementController } from './procurement.controller';
 import { RecommendationConversionService } from 'src/modules/procurement/services/recommendation-conversion.service';
+import { InventoryBalanceService } from 'src/modules/inventory/services/inventory-balance.service';
 import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
 import type { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
 
@@ -26,6 +27,10 @@ describe('ProcurementController', () => {
     previewRecommendations: jest.fn(),
   };
 
+  const inventoryBalanceServiceMock = {
+    recalculateInventoryBalanceForProduct: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -35,6 +40,10 @@ describe('ProcurementController', () => {
         {
           provide: ProcurementService,
           useValue: procurementServiceMock,
+        },
+        {
+          provide: InventoryBalanceService,
+          useValue: inventoryBalanceServiceMock,
         },
         {
           provide: RecommendationConversionService,
@@ -183,11 +192,13 @@ describe('ProcurementController', () => {
       submittedPurchaseOrder,
     );
 
-    const result = await controller.submitPurchaseOrder(identity, '5');
+    const dto = { locationCode: 'MAIN' };
+    const result = await controller.submitPurchaseOrder(identity, '5', dto);
 
     expect(procurementServiceMock.submitPurchaseOrder).toHaveBeenCalledWith(
       1n,
       '5',
+      'MAIN',
     );
     expect(result).toEqual(submittedPurchaseOrder);
   });
@@ -207,8 +218,8 @@ describe('ProcurementController', () => {
       ],
     };
     const dto: ReceivePurchaseOrderDto = {
-      locationCode: 'MAIN',
       receivedAt: '2026-04-12T12:00:00.000Z',
+      notes: 'Received part of the purchase order',
       lines: [
         {
           purchaseOrderLineId: '10',
@@ -248,8 +259,8 @@ describe('ProcurementController', () => {
     };
 
     const dto: ReceivePurchaseOrderDto = {
-      locationCode: 'MAIN',
       receivedAt: '2026-04-12T12:00:00.000Z',
+      notes: 'Received all items for the purchase order',
       lines: [
         {
           purchaseOrderLineId: '10',

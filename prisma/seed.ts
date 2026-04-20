@@ -19,6 +19,7 @@ const prisma = new PrismaClient({ adapter });
 const dec = (value: string | number) => new Prisma.Decimal(value);
 
 async function resetDemoData() {
+  await prisma.location.deleteMany();
   await prisma.receiptLine.deleteMany();
   await prisma.receipt.deleteMany();
   await prisma.purchaseOrderLine.deleteMany();
@@ -523,6 +524,34 @@ async function main() {
       receivedAt: new Date('2026-03-25T10:00:00.000Z'),
       notes: 'Initial receipt against PO-10001',
     },
+  });
+
+  const location = await prisma.location.createMany({
+    data: [{
+      accountId: account.id,
+      code: 'MAIN',
+      name: 'Daytona Beach Warehouse',
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      accountId: account.id,
+      code: 'ORL',
+      name: 'Orlando Fulfillment Center',
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      accountId: account.id,
+      code: 'TAM',
+      name: 'Tampa Fulfillment Center',
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+  ]
   });
 
   await prisma.receiptLine.createMany({

@@ -109,6 +109,48 @@ export class ProcurementService {
         });
     }
 
+    async findPurchaseOrder(accountId: bigint, purchaseOrderId: string) {
+
+        let poId: bigint;
+
+        try {
+            poId = BigInt(purchaseOrderId);
+        } catch {
+            throw new BadRequestException('Invalid purchase order id');
+        }
+
+        const purchaseOrderDetail = await this.prismaService.purchaseOrder.findFirst({
+            where: { id: poId, accountId },
+            include: { 
+                vendor: true,
+                lines: {
+                    include:  {
+                        product: true,
+                        vendorProduct: true
+                    },
+                },
+                receipts: {
+                    include: {
+                        lines: {
+                            include: {
+                                product: true,
+                            },
+                        },
+                    },
+                        orderBy: {
+                        receivedAt: 'desc',
+                    },
+                },            
+            },
+        });
+
+        if (!purchaseOrderDetail) {
+            throw new NotFoundException(`Purchase order with ID ${purchaseOrderId} not found`);
+        }
+
+        return purchaseOrderDetail;
+    }   
+
     async submitPurchaseOrder(accountId: bigint, purchaseOrderId: string, locationCode: string) {
  
         let poId: bigint;
@@ -195,6 +237,111 @@ export class ProcurementService {
          });
 
          return po;
+    }
+
+    async cancelPurchaseOrder(accountId: bigint, purchaseOrderId: string) {
+
+        let poId: bigint;
+
+        try {
+            poId = BigInt(purchaseOrderId);
+        } catch {
+            throw new BadRequestException('Invalid purchase order id');
+        }
+
+        const purchaseOrder = await this.prismaService.purchaseOrder.findFirst({
+            where: { id: poId, accountId },
+            select: {
+                id: true,
+                status: true,
+                locationCode: true,
+                lines: {
+                    select: {
+                        productId: true,
+                    },
+                },
+            },
+        });
+
+        if (!purchaseOrder) {
+            throw new NotFoundException(`Purchase order with ID ${purchaseOrderId} not found`);
+        }
+
+        const cancellableStatuses: PurchaseOrderStatus[] = [
+            PurchaseOrderStatus.draft,
+            PurchaseOrderStatus.submitted,
+            PurchaseOrderStatus.partially_received,
+        ];
+
+        if (!cancellableStatuses.includes(purchaseOrder.status)) {
+            throw new BadRequestException(
+                `Purchase order cannot be cancelled from status ${purchaseOrder.status}.`,
+            );
+        }
+
+        const shouldRecalculateIncoming =
+            purchaseOrder.status === PurchaseOrderStatus.submitted ||
+            purchaseOrder.status === PurchaseOrderStatus.partially_received;
+
+        const now = new Date();
+
+        const cancelledPo = await this.prismaService.$transaction(async (tx) => {
+            const updatedResult = await tx.purchaseOrder.updateMany({
+                where: {
+                    id: poId,
+                    accountId,
+                    status: { in: cancellableStatuses },
+                },
+                data: {
+                    status: PurchaseOrderStatus.cancelled,
+                    cancelledAt: now,
+                },
+            });
+
+            if (updatedResult.count !== 1) {
+                throw new BadRequestException(
+                    `Purchase order ${purchaseOrderId} not found or not in a cancellable status`,
+                );
+            }
+
+            const updatedPo = await tx.purchaseOrder.findUnique({
+                where: { id: poId },
+                include: {
+                    vendor: true,
+                    lines: {
+                        include: {
+                            product: true,
+                            vendorProduct: true,
+                        },
+                    },
+                    receipts: true,
+                },
+            });
+
+            if (!updatedPo) {
+                throw new NotFoundException(`Purchase order with ID ${purchaseOrderId} not found after cancellation`);
+            }
+
+            if (shouldRecalculateIncoming) {
+                const touchedProductIds = new Set<bigint>();
+                for (const line of purchaseOrder.lines) {
+                    touchedProductIds.add(line.productId);
+                }
+
+                for (const productId of touchedProductIds) {
+                    await this.inventoryBalanceService.recalculateInventoryBalanceForProduct(
+                        accountId,
+                        productId,
+                        purchaseOrder.locationCode,
+                        tx
+                    );
+                }
+            }
+
+            return updatedPo;
+        });
+
+        return cancelledPo;
     }
 
     async receivePurchaseOrder(

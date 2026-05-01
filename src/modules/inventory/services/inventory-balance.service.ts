@@ -99,7 +99,7 @@ export class InventoryBalanceService {
                 qtyIncoming,
                 qtyReserved,
                 qtyAvailable,
-                updatedAt: new Date(),
+                lastCalculatedAt: new Date(),
             },
             create: {
                 accountId,
@@ -109,6 +109,7 @@ export class InventoryBalanceService {
                 qtyIncoming,
                 qtyReserved,
                 qtyAvailable,
+                lastCalculatedAt: new Date(),
             },
         });
     }

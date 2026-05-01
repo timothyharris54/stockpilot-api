@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { InventoryService } from '../inventory/inventory.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, OrderStatus } from '@prisma/client';
 
 type OrderInput = {
     accountId: bigint,
@@ -90,7 +90,7 @@ export class OrdersService {
         return order;
     }
 
-    findAll(accountId: bigint) {
+    async findAll(accountId: bigint) {
         return this.prisma.order.findMany({
             where: { accountId: accountId },
             include: { orderLines: true },

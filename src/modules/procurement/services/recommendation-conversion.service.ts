@@ -84,6 +84,18 @@ export class RecommendationConversionService {
             },
           });
 
+          const vendorProduct = await tx.vendorProduct.findFirst({
+            where: {
+              accountId,
+              productId: item.productId,
+              isActive: true,
+              isPrimaryVendor: true,
+            },
+            include: {
+              vendor: true,
+            },
+          });
+
           const updateResult = await tx.reorderRecommendation.updateMany({
             where: {
               accountId,
@@ -96,8 +108,8 @@ export class RecommendationConversionService {
             },
             data: {
               status: RecommendationStatus.converted,
-              vendorId: item.vendorId,
-              vendorProductId: item.vendorProductId,
+              vendorId: vendorProduct?.vendorId,
+              vendorProductId: vendorProduct?.productId,
               purchaseOrderId: purchaseOrder.id,
               purchaseOrderLineId: purchaseOrderLine.id,
               finalQty: item.finalQty,

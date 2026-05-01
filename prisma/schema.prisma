@@ -67,6 +67,7 @@ enum ReservationStatus {
 }
 
 enum ReservationSourceType {
+  sales_order_line
   sales_order
   manual
 }

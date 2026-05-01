@@ -140,7 +140,7 @@ describe('InventoryBalanceService', () => {
           qtyIncoming: new Prisma.Decimal(14),
           qtyReserved: new Prisma.Decimal(4),
           qtyAvailable: new Prisma.Decimal(14),
-          updatedAt: expect.any(Date),
+          lastCalculatedAt: expect.any(Date),
         },
         create: {
           accountId,
@@ -150,6 +150,7 @@ describe('InventoryBalanceService', () => {
           qtyIncoming: new Prisma.Decimal(14),
           qtyReserved: new Prisma.Decimal(4),
           qtyAvailable: new Prisma.Decimal(14),
+          lastCalculatedAt: expect.any(Date),
         },
       });
 
@@ -215,7 +216,7 @@ describe('InventoryBalanceService', () => {
           qtyIncoming: new Prisma.Decimal(3),
           qtyReserved: new Prisma.Decimal(0),
           qtyAvailable: new Prisma.Decimal(7),
-          updatedAt: expect.any(Date),
+          lastCalculatedAt: expect.any(Date),
         },
         create: {
           accountId: 1n,
@@ -225,6 +226,7 @@ describe('InventoryBalanceService', () => {
           qtyIncoming: new Prisma.Decimal(3),
           qtyReserved: new Prisma.Decimal(0),
           qtyAvailable: new Prisma.Decimal(7),
+          lastCalculatedAt: expect.any(Date),
         },
       });
     });
@@ -287,7 +289,7 @@ describe('InventoryBalanceService', () => {
           qtyIncoming: new Prisma.Decimal(0),
           qtyReserved: new Prisma.Decimal(2),
           qtyAvailable: new Prisma.Decimal(7),
-          updatedAt: expect.any(Date),
+          lastCalculatedAt: expect.any(Date),
         },
         create: {
           accountId: 1n,
@@ -297,6 +299,7 @@ describe('InventoryBalanceService', () => {
           qtyIncoming: new Prisma.Decimal(0),
           qtyReserved: new Prisma.Decimal(2),
           qtyAvailable: new Prisma.Decimal(7),
+          lastCalculatedAt: expect.any(Date),
         },
       });
     });

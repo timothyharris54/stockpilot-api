@@ -7,7 +7,9 @@ import { ProductsService } from '../products/products.service';
 describe('InventoryController', () => {
   let controller: InventoryController;
 
-  const prismaMock = {};
+  const prismaMock = {
+    getReservations: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -24,5 +26,16 @@ describe('InventoryController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('delegates getReservations to the service', async () => {
+    const identity = { accountId: 1n } as any;
+    const query = { productId: '331', locationCode: 'MAIN', take: 50 };
+    prismaMock.getReservations.mockResolvedValue([]);
+
+    const result = await controller.getReservations(identity, query as any);
+
+    expect(prismaMock.getReservations).toHaveBeenCalledWith(1n, query);
+    expect(result).toEqual([]);
   });
 });

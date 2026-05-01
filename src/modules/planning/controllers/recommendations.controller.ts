@@ -5,6 +5,7 @@ import {
   UseGuards,
   Get,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
 import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
@@ -13,6 +14,8 @@ import { RecommendationStatus } from '@prisma/client';
 
 @Controller('planning/recommendations')
 @UseGuards(JwtAuthGuard)
+@ApiTags('Planning')
+@ApiBearerAuth()
 export class RecommendationsController {
   constructor(
     private readonly recommendationsService: RecommendationsService ,

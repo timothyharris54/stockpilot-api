@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RecommendationConversionService } from 'src/modules/procurement/services/recommendation-conversion.service';
 import { ProcurementService } from 'src/modules/procurement/procurement.service';
 import { InventoryBalanceService } from 'src/modules/inventory/services/inventory-balance.service';
@@ -12,6 +13,8 @@ import { ConvertRecommendationsDto } from './dto/convert-recommendations.dto';
 
 @Controller('procurement')
 @UseGuards(JwtAuthGuard)
+@ApiTags('Procurement')
+@ApiBearerAuth()
 export class ProcurementController {
     constructor(
         private readonly procurementService: ProcurementService,
@@ -64,6 +67,15 @@ export class ProcurementController {
             return this.procurementService.findAllPurchaseOrders(identity.accountId);
         }   
 
+    @Get('purchase-order/:id')
+    async findPurchaseOrder(
+        @CurrentIdentity() identity: RequestIdentity,
+        @Param('id') id: string
+        ) 
+        {
+            return this.procurementService.findPurchaseOrder(identity.accountId, id);
+        }   
+
 
     @Post('purchase-order/:id/submit')
     async submitPurchaseOrder(
@@ -74,6 +86,15 @@ export class ProcurementController {
         {
             return this.procurementService.submitPurchaseOrder(identity.accountId, id, dto.locationCode);
         }   
+
+    @Post('purchase-order/:id/cancel')
+    async cancelPurchaseOrder(
+        @CurrentIdentity() identity: RequestIdentity,
+        @Param('id') id: string
+        )
+        {
+            return this.procurementService.cancelPurchaseOrder(identity.accountId, id);
+        }
 
     @Post('purchase-order/:id/receive')
     async receivePurchaseOrder(

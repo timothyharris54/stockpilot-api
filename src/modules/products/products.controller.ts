@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Injectable, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProductsService } from 'src/modules/products/products.service';
 import { CreateProductDto } from 'src/modules/products/dto/create-product.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -6,6 +7,8 @@ import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.de
 import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
 
 @Controller('products')
+@ApiTags('Products')
+@ApiBearerAuth()
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
   

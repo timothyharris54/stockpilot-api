@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { VendorsService } from 'src/modules/vendors/vendors.service';
 import { CreateVendorDto } from 'src/modules/vendors/dto/create-vendor.dto';
 import { CreateVendorProductDto } from 'src/modules/vendors/dto/create-vendor-product.dto';
@@ -7,6 +8,8 @@ import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identi
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('vendors')
+@ApiTags('Vendors')
+@ApiBearerAuth()
 export class VendorsController {
   constructor(private readonly vendorsService: VendorsService) {}
 

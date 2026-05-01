@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
@@ -6,6 +7,8 @@ import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identi
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('orders')
+@ApiTags('Orders')
+@ApiBearerAuth()
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
     @UseGuards(JwtAuthGuard)

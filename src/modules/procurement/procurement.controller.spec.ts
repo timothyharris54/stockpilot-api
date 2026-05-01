@@ -19,6 +19,7 @@ describe('ProcurementController', () => {
     createPurchaseOrder: jest.fn(),
     findAllPurchaseOrders: jest.fn(),
     submitPurchaseOrder: jest.fn(),
+    cancelPurchaseOrder: jest.fn(),
     receivePurchaseOrder: jest.fn(),
   };
 
@@ -201,6 +202,26 @@ describe('ProcurementController', () => {
       'MAIN',
     );
     expect(result).toEqual(submittedPurchaseOrder);
+  });
+
+  it('calls cancelPurchaseOrder with accountId from identity and route id', async () => {
+    const cancelledPurchaseOrder = {
+      id: 5n,
+      accountId: 1n,
+      status: 'cancelled',
+    };
+
+    procurementServiceMock.cancelPurchaseOrder.mockResolvedValue(
+      cancelledPurchaseOrder,
+    );
+
+    const result = await controller.cancelPurchaseOrder(identity, '5');
+
+    expect(procurementServiceMock.cancelPurchaseOrder).toHaveBeenCalledWith(
+      1n,
+      '5',
+    );
+    expect(result).toEqual(cancelledPurchaseOrder);
   });
 
   it('receives part of a purchase order and sets status to partially_received', async () => {

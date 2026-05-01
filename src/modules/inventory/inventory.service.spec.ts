@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, InventoryEventType, ReferenceType, AdjustmentReasonCodes } from '@prisma/client';
+import { Prisma, InventoryEventType, ReferenceType, AdjustmentReasonCodes, ReservationSourceType, ReservationStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InventoryBalanceService } from './services/inventory-balance.service';
 import { InventoryService } from './inventory.service';
@@ -59,6 +59,7 @@ describe('InventoryService', () => {
     
     prismaMock.inventoryReservation = {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn()
     };
@@ -1429,6 +1430,84 @@ describe('InventoryService', () => {
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
   });  
+
+  describe('getReservations', () => {
+    it('returns reservations filtered by product and location', async () => {
+      prismaMock.inventoryReservation.findMany.mockResolvedValue([
+        {
+          id: 301n,
+          productId: 331n,
+          locationCode: 'MAIN',
+          sourceType: ReservationSourceType.manual,
+          sourceId: 9001n,
+          reservedQty: new Prisma.Decimal('5'),
+          status: ReservationStatus.active,
+          createdAt: new Date('2026-04-22T12:00:00.000Z'),
+          updatedAt: new Date('2026-04-22T12:00:00.000Z'),
+          releasedAt: null,
+          consumedAt: null,
+          notes: 'Reservation',
+          product: {
+            id: 331n,
+            sku: 'WB-100',
+            name: 'Widget Basic',
+          },
+        },
+      ]);
+
+      const result = await service.getReservations(1n, {
+        productId: '331',
+        locationCode: 'MAIN',
+        take: 50,
+      });
+
+      expect(prismaMock.inventoryReservation.findMany).toHaveBeenCalledWith({
+        where: {
+          accountId: 1n,
+          productId: 331n,
+          locationCode: 'MAIN',
+        },
+        select: {
+          id: true,
+          productId: true,
+          locationCode: true,
+          sourceType: true,
+          sourceId: true,
+          reservedQty: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          releasedAt: true,
+          consumedAt: true,
+          notes: true,
+          product: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 50,
+        skip: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].productId).toBe(331n);
+      expect(result[0].locationCode).toBe('MAIN');
+    });
+
+    it('rejects invalid productId', async () => {
+      await expect(
+        service.getReservations(1n, {
+          productId: 'abc',
+        }),
+      ).rejects.toThrow('Invalid productId abc');
+
+      expect(prismaMock.inventoryReservation.findMany).not.toHaveBeenCalled();
+    });
+  });
 
   describe('releaseReservation', () => {
     it('releases active reservation and recalculates balance', async () => {

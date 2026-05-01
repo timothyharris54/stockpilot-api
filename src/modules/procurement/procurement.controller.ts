@@ -67,6 +67,15 @@ export class ProcurementController {
             return this.procurementService.findAllPurchaseOrders(identity.accountId);
         }   
 
+    @Get('purchase-order/:id')
+    async findPurchaseOrder(
+        @CurrentIdentity() identity: RequestIdentity,
+        @Param('id') id: string
+        ) 
+        {
+            return this.procurementService.findPurchaseOrder(identity.accountId, id);
+        }   
+
 
     @Post('purchase-order/:id/submit')
     async submitPurchaseOrder(
@@ -77,6 +86,15 @@ export class ProcurementController {
         {
             return this.procurementService.submitPurchaseOrder(identity.accountId, id, dto.locationCode);
         }   
+
+    @Post('purchase-order/:id/cancel')
+    async cancelPurchaseOrder(
+        @CurrentIdentity() identity: RequestIdentity,
+        @Param('id') id: string
+        )
+        {
+            return this.procurementService.cancelPurchaseOrder(identity.accountId, id);
+        }
 
     @Post('purchase-order/:id/receive')
     async receivePurchaseOrder(

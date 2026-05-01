@@ -9,6 +9,7 @@ import { GetLedgerQueryDto } from 'src/modules/inventory/dto/get-ledger-query.dt
 import { getMovementDirection } from 'src/modules/inventory/utils/inventory.utils';
 import { GetBalanceQueryDto } from 'src/modules/inventory/dto/get-balance-query.dto';
 import { CreateReservationDto } from 'src/modules/inventory/dto/create-reservation.dto';
+import { GetReservationsQueryDto } from 'src/modules/inventory/dto/get-reservations-query.dto';
 
 type InventoryInput = {
     accountId: bigint,
@@ -29,6 +30,12 @@ type ReservationInput = {
 
 const INVENTORY_LEDGER_EVENT_TYPES = new Set<InventoryEventType>(
     Object.values(InventoryEventType),
+);
+const INVENTORY_RESERVATION_STATUSES = new Set<ReservationStatus>(
+    Object.values(ReservationStatus),
+);
+const INVENTORY_RESERVATION_SOURCE_TYPES = new Set<ReservationSourceType>(
+    Object.values(ReservationSourceType),
 );
 
 @Injectable()
@@ -532,6 +539,13 @@ export class InventoryService {
             if (fromDate && toDate && fromDate >= toDate) {
                 throw new BadRequestException('fromOccurredAt must be before toOccurredAt');
             }
+            if (typeof query.take === 'number' && query.take > 0) {
+                query.take = Math.min(query.take, 100);
+            }
+
+            if (typeof query.skip === 'number' && query.skip > 0) {
+                query.skip = Math.min(query.skip, 0);
+            }            
         }
 
         let ledgerEntries = await this.prismaService.inventoryLedger.findMany({
@@ -568,6 +582,69 @@ export class InventoryService {
             ...entry,
             movementDirection: getMovementDirection(entry.quantityDelta),
         }));    
+    }
+
+    async getReservations(accountId: bigint, query: GetReservationsQueryDto) {
+        const where: any = { accountId };
+        const take = this.parseOptionalPositiveInteger(query.take, 'take');
+        const skip = this.parseOptionalPositiveInteger(query.skip, 'skip');
+
+        if (query.productId !== undefined) {
+            where.productId = this.parseBigIntField(query.productId, 'productId');
+        }
+
+        if (query.locationCode !== undefined) {
+            where.locationCode = this.parseLocationCode(query.locationCode, 'locationCode');
+        }
+
+        if (query.status) {
+            if (!INVENTORY_RESERVATION_STATUSES.has(query.status)) {
+                throw new BadRequestException(`Invalid status ${query.status}`);
+            }
+            where.status = query.status;
+        }
+
+        if (query.sourceType) {
+            if (!INVENTORY_RESERVATION_SOURCE_TYPES.has(query.sourceType)) {
+                throw new BadRequestException(`Invalid sourceType ${query.sourceType}`);
+            }
+            where.sourceType = query.sourceType;
+        }
+
+        if (query.sourceId !== undefined) {
+            where.sourceId = this.parseBigIntField(query.sourceId, 'sourceId');
+        }
+
+        return this.prismaService.inventoryReservation.findMany({
+            where,
+            select: {
+                id: true,
+                productId: true,
+                locationCode: true,
+                sourceType: true,
+                sourceId: true,
+                reservedQty: true,
+                status: true,
+                createdAt: true,
+                updatedAt: true,
+                releasedAt: true,
+                consumedAt: true,
+                notes: true,
+                product: {
+                    select: {
+                        id: true,
+                        sku: true,
+                        name: true,
+                    },
+                },
+            },
+            orderBy: [
+                { createdAt: 'desc' },
+                { id: 'desc' },
+            ],
+            take: take ?? 100,
+            skip: skip ?? 0,
+        });
     }
 
     async createReservation(input: ReservationInput) {

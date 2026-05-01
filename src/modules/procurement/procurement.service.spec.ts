@@ -192,6 +192,135 @@ describe('ProcurementService', () => {
     });
   });
 
+  describe('cancelPurchaseOrder', () => {
+    it('cancels a submitted purchase order and recalculates incoming inventory once per product', async () => {
+      const accountId = 1n;
+
+      prismaMock.purchaseOrder.findFirst.mockResolvedValue({
+        id: 5n,
+        accountId,
+        locationCode: 'MAIN',
+        status: PurchaseOrderStatus.submitted,
+        lines: [
+          { productId: 11n },
+          { productId: 11n },
+          { productId: 12n },
+        ],
+      });
+
+      const cancelledPo = {
+        id: 5n,
+        accountId,
+        locationCode: 'MAIN',
+        status: PurchaseOrderStatus.cancelled,
+        cancelledAt: new Date(),
+        vendor: {},
+        lines: [],
+        receipts: [],
+      };
+
+      txMock.purchaseOrder.updateMany.mockResolvedValue({ count: 1 });
+      txMock.purchaseOrder.findUnique.mockResolvedValue(cancelledPo);
+
+      const result = await service.cancelPurchaseOrder(accountId, '5');
+
+      expect(prismaMock.purchaseOrder.findFirst).toHaveBeenCalledWith({
+        where: { id: 5n, accountId },
+        select: {
+          id: true,
+          status: true,
+          locationCode: true,
+          lines: {
+            select: {
+              productId: true,
+            },
+          },
+        },
+      });
+
+      expect(txMock.purchaseOrder.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 5n,
+          accountId,
+          status: {
+            in: [
+              PurchaseOrderStatus.draft,
+              PurchaseOrderStatus.submitted,
+              PurchaseOrderStatus.partially_received,
+            ],
+          },
+        },
+        data: {
+          status: PurchaseOrderStatus.cancelled,
+          cancelledAt: expect.any(Date),
+        },
+      });
+
+      expect(txMock.purchaseOrder.findUnique).toHaveBeenCalledWith({
+        where: { id: 5n },
+        include: {
+          vendor: true,
+          lines: {
+            include: {
+              product: true,
+              vendorProduct: true,
+            },
+          },
+          receipts: true,
+        },
+      });
+
+      expect(
+        inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct,
+      ).toHaveBeenCalledTimes(2);
+      expect(
+        inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct,
+      ).toHaveBeenNthCalledWith(1, accountId, 11n, 'MAIN', txMock);
+      expect(
+        inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct,
+      ).toHaveBeenNthCalledWith(2, accountId, 12n, 'MAIN', txMock);
+      expect(result).toEqual(cancelledPo);
+    });
+
+    it('cancels a draft purchase order without recalculating inventory', async () => {
+      prismaMock.purchaseOrder.findFirst.mockResolvedValue({
+        id: 5n,
+        accountId: 1n,
+        locationCode: 'MAIN',
+        status: PurchaseOrderStatus.draft,
+        lines: [{ productId: 11n }],
+      });
+
+      txMock.purchaseOrder.updateMany.mockResolvedValue({ count: 1 });
+      txMock.purchaseOrder.findUnique.mockResolvedValue({
+        id: 5n,
+        status: PurchaseOrderStatus.cancelled,
+      });
+
+      await service.cancelPurchaseOrder(1n, '5');
+
+      expect(
+        inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('rejects cancel from received status', async () => {
+      prismaMock.purchaseOrder.findFirst.mockResolvedValue({
+        id: 5n,
+        accountId: 1n,
+        locationCode: 'MAIN',
+        status: PurchaseOrderStatus.received,
+        lines: [],
+      });
+
+      await expect(service.cancelPurchaseOrder(1n, '5')).rejects.toThrow(
+        'Purchase order cannot be cancelled from status received.',
+      );
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
   describe('receivePurchaseOrder', () => {
     it('receives partial quantities and sets status to partially_received', async () => {
       const accountId = 1n;

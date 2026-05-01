@@ -8,6 +8,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetLedgerQueryDto } from 'src/modules/inventory/dto/get-ledger-query.dto';
 import { GetBalanceQueryDto } from 'src/modules/inventory/dto/get-balance-query.dto';
 import { CreateReservationDto } from 'src/modules/inventory/dto/create-reservation.dto';
+import { GetReservationsQueryDto } from 'src/modules/inventory/dto/get-reservations-query.dto';
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard)
@@ -83,6 +84,14 @@ export class InventoryController {
       accountId: BigInt(identity.accountId),
       createReservationDto: dto,
     });
+  }
+
+  @Get('reservations')
+  async getReservations(
+    @CurrentIdentity() identity: RequestIdentity,
+    @Query() query: GetReservationsQueryDto,
+  ) {
+    return this.inventoryService.getReservations(identity.accountId, query);
   }
 
   @Post('reservations/:id/release')

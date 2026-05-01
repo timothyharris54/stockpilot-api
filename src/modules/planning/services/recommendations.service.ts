@@ -12,9 +12,24 @@ export class RecommendationsService {
     async findAll(accountId: bigint) {
         return this.prisma.reorderRecommendation.findMany({
             where: {
-                accountId
+                accountId,
             },
-            orderBy: { id: 'asc' }
+            include: {
+                product: {
+                    select: {
+                    id: true,
+                    sku: true,
+                    name: true,
+                    },
+                },
+                vendor: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+            orderBy: { id: 'asc' },
         });
     }
 
@@ -23,6 +38,21 @@ export class RecommendationsService {
             where: {
                 accountId,
                 status
+            },
+            include: {
+                product: {
+                    select: {
+                    id: true,
+                    sku: true,
+                    name: true,
+                    },
+                },
+                vendor: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
             },
             orderBy: { id: 'asc' }
         });

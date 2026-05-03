@@ -1,8 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  Prisma,
-  PurchaseOrderStatus,
-} from '@prisma/client';
+import { Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { InventoryBalanceService } from '../inventory/services/inventory-balance.service';
@@ -15,9 +12,7 @@ describe('ProcurementService', () => {
   let inventoryBalanceServiceMock: any;
   let inventoryServiceMock: any;
 
-  function makePoLine(
-    overrides: Partial<any> = {},
-  ) {
+  function makePoLine(overrides: Partial<any> = {}) {
     return {
       id: 10n,
       accountId: 1n,
@@ -30,9 +25,7 @@ describe('ProcurementService', () => {
     };
   }
 
-  function makePurchaseOrder(
-    overrides: Partial<any> = {},
-  ) {
+  function makePurchaseOrder(overrides: Partial<any> = {}) {
     return {
       id: 5n,
       accountId: 1n,
@@ -113,6 +106,110 @@ describe('ProcurementService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('updatePurchaseOrder', () => {
+    it('updates draft purchase order header fields and line quantities', async () => {
+      const accountId = 1n;
+      const expectedAt = '2026-05-15T00:00:00.000Z';
+      const updatedPo = {
+        id: 5n,
+        status: PurchaseOrderStatus.draft,
+        notes: 'Updated notes',
+        vendor: {},
+        lines: [],
+        receipts: [],
+      };
+
+      prismaMock.purchaseOrder.findFirst.mockResolvedValue({
+        id: 5n,
+        status: PurchaseOrderStatus.draft,
+        lines: [
+          {
+            id: 10n,
+            receivedQty: new Prisma.Decimal(0),
+            unitCost: new Prisma.Decimal('8.25'),
+          },
+        ],
+      });
+
+      txMock.purchaseOrder.updateMany.mockResolvedValue({ count: 1 });
+      txMock.purchaseOrderLine.update.mockResolvedValue({});
+      txMock.purchaseOrder.findUnique.mockResolvedValue(updatedPo);
+
+      const result = await service.updatePurchaseOrder(accountId, '5', {
+        expectedAt,
+        notes: 'Updated notes',
+        lines: [{ purchaseOrderLineId: '10', orderedQty: '4' }],
+      });
+
+      expect(prismaMock.purchaseOrder.findFirst).toHaveBeenCalledWith({
+        where: { id: 5n, accountId },
+        select: {
+          id: true,
+          status: true,
+          lines: {
+            select: {
+              id: true,
+              receivedQty: true,
+              unitCost: true,
+            },
+          },
+        },
+      });
+
+      expect(txMock.purchaseOrder.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 5n,
+          accountId,
+          status: PurchaseOrderStatus.draft,
+        },
+        data: {
+          expectedAt: new Date(expectedAt),
+          notes: 'Updated notes',
+        },
+      });
+
+      expect(txMock.purchaseOrderLine.update).toHaveBeenCalledWith({
+        where: { id: 10n },
+        data: {
+          orderedQty: new Prisma.Decimal(4),
+          lineTotal: new Prisma.Decimal(4).mul(new Prisma.Decimal('8.25')),
+        },
+      });
+
+      expect(txMock.purchaseOrder.findUnique).toHaveBeenCalledWith({
+        where: { id: 5n },
+        include: {
+          vendor: true,
+          lines: {
+            include: {
+              product: true,
+              vendorProduct: true,
+            },
+          },
+          receipts: true,
+        },
+      });
+
+      expect(result).toEqual(updatedPo);
+    });
+
+    it('rejects updates when purchase order is not draft', async () => {
+      prismaMock.purchaseOrder.findFirst.mockResolvedValue({
+        id: 5n,
+        status: PurchaseOrderStatus.submitted,
+        lines: [],
+      });
+
+      await expect(
+        service.updatePurchaseOrder(1n, '5', {
+          notes: 'Updated notes',
+        }),
+      ).rejects.toThrow('Only draft purchase orders can be updated');
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('submitPurchaseOrder', () => {
@@ -201,11 +298,7 @@ describe('ProcurementService', () => {
         accountId,
         locationCode: 'MAIN',
         status: PurchaseOrderStatus.submitted,
-        lines: [
-          { productId: 11n },
-          { productId: 11n },
-          { productId: 12n },
-        ],
+        lines: [{ productId: 11n }, { productId: 11n }, { productId: 12n }],
       });
 
       const cancelledPo = {
@@ -429,7 +522,7 @@ describe('ProcurementService', () => {
       ).toHaveBeenCalledWith(1n, 11n, 'MAIN', txMock);
 
       expect(result.status).toBe(PurchaseOrderStatus.partially_received);
-    });    
+    });
 
     it('receives all quantities and sets status to received', async () => {
       const accountId = 1n;
@@ -566,9 +659,7 @@ describe('ProcurementService', () => {
           lines: [],
           receivedAt: new Date().toISOString(),
         } as any),
-      ).rejects.toThrow(
-        'Purchase order cannot be received from status draft.',
-      );
+      ).rejects.toThrow('Purchase order cannot be received from status draft.');
 
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
@@ -761,9 +852,15 @@ describe('ProcurementService', () => {
         lines: [],
       });
 
-      inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct.mockResolvedValue({});
+      inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct.mockResolvedValue(
+        {},
+      );
 
-      await service.receivePurchaseOrder(accountId, purchaseOrderId, dto as any);
+      await service.receivePurchaseOrder(
+        accountId,
+        purchaseOrderId,
+        dto as any,
+      );
 
       expect(
         inventoryBalanceServiceMock.recalculateInventoryBalanceForProduct,
@@ -778,6 +875,4 @@ describe('ProcurementService', () => {
       ).toHaveBeenNthCalledWith(2, accountId, 12n, 'MAIN', txMock);
     });
   });
-
-  
 });

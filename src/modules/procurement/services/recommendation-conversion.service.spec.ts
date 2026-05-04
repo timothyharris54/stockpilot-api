@@ -179,7 +179,10 @@ describe('RecommendationConversionService', () => {
 
       const result = await service.convertRecommendations({
         accountId,
-        recommendationIds: ['101', '102'],
+        recommendations: [
+          { recommendationId: '101', vendorId: '501', quantity: '5' },
+          { recommendationId: '102', vendorId: '501', quantity: '7' },
+        ],
       });
 
       expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledWith({
@@ -202,6 +205,7 @@ describe('RecommendationConversionService', () => {
         where: {
           accountId,
           productId: 11n,
+          vendorId: 501n,
           isActive: true,
         },
         orderBy: [{ isPrimaryVendor: 'desc' }, { id: 'asc' }],
@@ -211,6 +215,7 @@ describe('RecommendationConversionService', () => {
         where: {
           accountId,
           productId: 12n,
+          vendorId: 501n,
           isActive: true,
         },
         orderBy: [{ isPrimaryVendor: 'desc' }, { id: 'asc' }],
@@ -425,7 +430,10 @@ describe('RecommendationConversionService', () => {
 
       const result = await service.convertRecommendations({
         accountId,
-        recommendationIds: ['101', '102'],
+        recommendations: [
+          { recommendationId: '101', vendorId: '501', quantity: '5' },
+          { recommendationId: '102', vendorId: '502', quantity: '7' },
+        ],
       });
 
       expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledWith({
@@ -602,7 +610,9 @@ describe('RecommendationConversionService', () => {
 
       const result = await service.previewRecommendations({
         accountId,
-        recommendationIds: ['101'],
+        recommendations: [
+          { recommendationId: '101', vendorId: '501', quantity: '5' },
+        ],
       });
 
       expect(result).toEqual({
@@ -634,6 +644,54 @@ describe('RecommendationConversionService', () => {
       );
       expect(prismaMock.vendorProduct.findMany).toHaveBeenCalledTimes(1);
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('uses requested quantity when calculating preview final quantity', async () => {
+      const accountId = 1n;
+
+      prismaMock.reorderRecommendation.findMany.mockResolvedValue([
+        {
+          id: 101n,
+          accountId,
+          productId: 11n,
+          status: RecommendationStatus.open,
+          recommendedQty: new Prisma.Decimal(5),
+        },
+      ]);
+
+      prismaMock.vendorProduct.findMany.mockResolvedValue([
+        {
+          id: 201n,
+          accountId,
+          vendorId: 501n,
+          productId: 11n,
+          unitCost: new Prisma.Decimal('8.25'),
+          minOrderQty: new Prisma.Decimal('12'),
+          orderMultiple: new Prisma.Decimal('6'),
+          isPrimaryVendor: true,
+          isActive: true,
+        },
+      ]);
+
+      vendorProductSelectorMock.select.mockReturnValue({
+        id: 201n,
+        vendorId: 501n,
+        unitCost: new Prisma.Decimal('8.25'),
+        minOrderQty: new Prisma.Decimal('12'),
+        orderMultiple: new Prisma.Decimal('6'),
+      });
+
+      const result = await service.previewRecommendations({
+        accountId,
+        recommendations: [
+          { recommendationId: '101', vendorId: '501', quantity: '13' },
+        ],
+      });
+
+      expect(result.vendorGroups[0].totalOrderedQty).toBe('18');
+      expect(result.vendorGroups[0].totalCost).toBe('148.50');
+      expect(result.vendorGroups[0].lines[0].recommendedQty).toBe('5');
+      expect(result.vendorGroups[0].lines[0].finalQty).toBe('18');
     });
 
     it('fails when a recommendation cannot be updated due to concurrent modification', async () => {
@@ -701,7 +759,9 @@ describe('RecommendationConversionService', () => {
       try {
         await service.convertRecommendations({
           accountId,
-          recommendationIds: ['101'],
+          recommendations: [
+            { recommendationId: '101', vendorId: '501', quantity: '5' },
+          ],
         });
         fail('Expected convertRecommendations to throw');
       } catch (error) {
@@ -722,7 +782,10 @@ describe('RecommendationConversionService', () => {
       try {
         await service.convertRecommendations({
           accountId,
-          recommendationIds: ['101', '101'],
+          recommendations: [
+            { recommendationId: '101', vendorId: '501', quantity: '5' },
+            { recommendationId: '101', vendorId: '501', quantity: '7' },
+          ],
         });
         fail('Expected convertRecommendations to throw');
       } catch (error) {
@@ -789,13 +852,15 @@ describe('RecommendationConversionService', () => {
       try {
         await service.convertRecommendations({
           accountId,
-          recommendationIds: ['101'],
+          recommendations: [
+            { recommendationId: '101', vendorId: '501', quantity: '5' },
+          ],
         });
         fail('Expected convertRecommendations to throw');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
         expect((error as BadRequestException).message).toBe(
-          'Unable to resolve a vendor product for recommendation 101 (product 11).',
+          'Unable to resolve a vendor product for recommendation 101 (product 11, vendor 501).',
         );
       }
 
@@ -832,7 +897,10 @@ describe('RecommendationConversionService', () => {
       try {
         await service.convertRecommendations({
           accountId,
-          recommendationIds: ['101', '102'],
+          recommendations: [
+            { recommendationId: '101', vendorId: '501', quantity: '5' },
+            { recommendationId: '102', vendorId: '501', quantity: '7' },
+          ],
         });
         fail('Expected convertRecommendations to throw');
       } catch (error) {
@@ -854,66 +922,28 @@ describe('RecommendationConversionService', () => {
       expect(txMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
     });
 
-    it('fails when calculated final quantity is zero or less', async () => {
+    it('fails when requested quantity is zero or less', async () => {
       const accountId = 1n;
-
-      prismaMock.reorderRecommendation.findMany.mockResolvedValue([
-        {
-          id: 101n,
-          accountId,
-          productId: 11n,
-          status: RecommendationStatus.open,
-          recommendedQty: new Prisma.Decimal(0),
-          product: {
-            id: 11n,
-            sku: 'WB-100',
-            name: 'Widget Basic',
-          },
-        },
-      ]);
-
-      prismaMock.vendorProduct.findMany.mockResolvedValue([
-        {
-          id: 201n,
-          accountId,
-          vendorId: 501n,
-          productId: 11n,
-          unitCost: new Prisma.Decimal('8.25'),
-          minOrderQty: new Prisma.Decimal('0'),
-          orderMultiple: new Prisma.Decimal('1'),
-          isPrimaryVendor: true,
-          isActive: true,
-        },
-      ]);
-
-      vendorProductSelectorMock.select.mockReturnValue({
-        id: 201n,
-        vendorId: 501n,
-        unitCost: new Prisma.Decimal('8.25'),
-        minOrderQty: new Prisma.Decimal('0'),
-        orderMultiple: new Prisma.Decimal('1'),
-      });
 
       try {
         await service.convertRecommendations({
           accountId,
-          recommendationIds: ['101'],
+          recommendations: [
+            { recommendationId: '101', vendorId: '501', quantity: '0' },
+          ],
         });
         fail('Expected convertRecommendations to throw');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
         expect((error as BadRequestException).message).toBe(
-          'Calculated final quantity must be greater than zero for recommendation 101.',
+          'Quantity must be greater than zero for recommendation 101.',
         );
       }
 
-      expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledTimes(
-        1,
-      );
-      expect(prismaMock.vendorProduct.findMany).toHaveBeenCalledTimes(1);
-      expect(vendorProductSelectorMock.select).toHaveBeenCalledTimes(1);
-
-      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      expect(prismaMock.reorderRecommendation.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.vendorProduct.findMany).not.toHaveBeenCalled();
+      expect(vendorProductSelectorMock.select).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
       expect(txMock.purchaseOrder.create).not.toHaveBeenCalled();
       expect(txMock.purchaseOrderLine.create).not.toHaveBeenCalled();
       expect(txMock.reorderRecommendation.updateMany).not.toHaveBeenCalled();
@@ -990,7 +1020,10 @@ describe('RecommendationConversionService', () => {
 
       const result = await service.previewRecommendations({
         accountId,
-        recommendationIds: ['101', '102'],
+        recommendations: [
+          { recommendationId: '101', vendorId: '501', quantity: '5' },
+          { recommendationId: '102', vendorId: '501', quantity: '7' },
+        ],
       });
 
       expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledWith({
@@ -1013,6 +1046,7 @@ describe('RecommendationConversionService', () => {
         where: {
           accountId,
           productId: 11n,
+          vendorId: 501n,
           isActive: true,
         },
         orderBy: [{ isPrimaryVendor: 'desc' }, { id: 'asc' }],
@@ -1022,6 +1056,7 @@ describe('RecommendationConversionService', () => {
         where: {
           accountId,
           productId: 12n,
+          vendorId: 501n,
           isActive: true,
         },
         orderBy: [{ isPrimaryVendor: 'desc' }, { id: 'asc' }],
@@ -1124,7 +1159,10 @@ describe('RecommendationConversionService', () => {
 
       const result = await service.previewRecommendations({
         accountId,
-        recommendationIds: ['101', '102'],
+        recommendations: [
+          { recommendationId: '101', vendorId: '501', quantity: '5' },
+          { recommendationId: '102', vendorId: '502', quantity: '7' },
+        ],
       });
 
       expect(prismaMock.reorderRecommendation.findMany).toHaveBeenCalledWith({
@@ -1147,6 +1185,7 @@ describe('RecommendationConversionService', () => {
         where: {
           accountId,
           productId: 11n,
+          vendorId: 501n,
           isActive: true,
         },
         orderBy: [{ isPrimaryVendor: 'desc' }, { id: 'asc' }],
@@ -1156,6 +1195,7 @@ describe('RecommendationConversionService', () => {
         where: {
           accountId,
           productId: 12n,
+          vendorId: 502n,
           isActive: true,
         },
         orderBy: [{ isPrimaryVendor: 'desc' }, { id: 'asc' }],

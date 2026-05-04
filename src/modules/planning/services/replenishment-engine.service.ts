@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { SalesDailyService } from 'src/modules/planning/services/sales-daily.service';
 import { InventoryPlanningService } from 'src/modules/inventory/services/inventory-planning.service';
@@ -59,7 +63,7 @@ export class ReplenishmentEngineService {
 
     const leadTimeDemand = avgDailySales * leadTimeDays;
     const reorderPoint = leadTimeDemand + safetyStock;
-    const targetStock = avgDailySales * targetDaysOfCover;
+    const targetStock = avgDailySales * targetDaysOfCover + safetyStock;
 
     const shouldReorder = inventoryPosition.qtyAvailable <= reorderPoint;
 
@@ -67,19 +71,19 @@ export class ReplenishmentEngineService {
     let recommendedQty = 0;
     let recommendation: any = null;
     let daysUntilStockout =
-        avgDailySales > 0
-          ? this.roundToTwo(inventoryPosition.qtyAvailable / avgDailySales)
-          : null;
+      avgDailySales > 0
+        ? this.roundToTwo(inventoryPosition.qtyAvailable / avgDailySales)
+        : null;
 
     if (shouldReorder) {
-        rawRecommendedQty = targetStock - inventoryPosition.qtyAvailable;
-        recommendedQty = Math.max(rawRecommendedQty, 0);
+      rawRecommendedQty = targetStock - inventoryPosition.qtyAvailable;
+      recommendedQty = Math.max(rawRecommendedQty, 0);
 
-        if (recommendedQty > 0 && recommendedQty < minReorderQty) {
-            recommendedQty = minReorderQty;
-        }
+      if (recommendedQty > 0 && recommendedQty < minReorderQty) {
+        recommendedQty = minReorderQty;
+      }
 
-        recommendedQty = this.roundToTwo(recommendedQty);
+      recommendedQty = this.roundToTwo(recommendedQty);
     }
     if (!dryRun) {
       await this.prisma.reorderRecommendation.updateMany({
@@ -90,25 +94,34 @@ export class ReplenishmentEngineService {
           status: RecommendationStatus.open,
         },
         data: {
-          status:  RecommendationStatus.superseded
-        }
-      });
-
-      recommendation = await this.prisma.reorderRecommendation.create({
-        data: {
-          accountId,
-          productId,
-          locationCode,
-          recommendedQty: recommendedQty.toString(),
-          daysUntilStockout: daysUntilStockout !== null ? daysUntilStockout.toString() : null,
-          reorderPoint: this.roundToTwo(reorderPoint).toString(),
-          targetStock: this.roundToTwo(targetStock).toString(),
-          avgDailySales30: this.roundToFour(avgDailySales).toString(),
-          qtyOnHandSnapshot: this.roundToTwo(inventoryPosition.qtyOnHand).toString(),
-          qtyIncomingSnapshot: this.roundToTwo(inventoryPosition.qtyIncoming).toString(),
-          qtyAvailableSnapshot: this.roundToTwo(inventoryPosition.qtyAvailable).toString(),
+          status: RecommendationStatus.superseded,
         },
       });
+
+      if (recommendedQty > 0) {
+        recommendation = await this.prisma.reorderRecommendation.create({
+          data: {
+            accountId,
+            productId,
+            locationCode,
+            recommendedQty: recommendedQty.toString(),
+            daysUntilStockout:
+              daysUntilStockout !== null ? daysUntilStockout.toString() : null,
+            reorderPoint: this.roundToTwo(reorderPoint).toString(),
+            targetStock: this.roundToTwo(targetStock).toString(),
+            avgDailySales30: this.roundToFour(avgDailySales).toString(),
+            qtyOnHandSnapshot: this.roundToTwo(
+              inventoryPosition.qtyOnHand,
+            ).toString(),
+            qtyIncomingSnapshot: this.roundToTwo(
+              inventoryPosition.qtyIncoming,
+            ).toString(),
+            qtyAvailableSnapshot: this.roundToTwo(
+              inventoryPosition.qtyAvailable,
+            ).toString(),
+          },
+        });
+      }
     }
 
     return {
@@ -140,10 +153,10 @@ export class ReplenishmentEngineService {
   }
 
   async generateForAccount(
-        accountId: bigint, 
-        locationCode: string,
-        dryRun = false,
-      ) {
+    accountId: bigint,
+    locationCode: string,
+    dryRun = false,
+  ) {
     const rules = await this.prisma.replenishmentRule.findMany({
       where: {
         accountId,
@@ -153,16 +166,14 @@ export class ReplenishmentEngineService {
         productId: 'asc',
       },
     });
-    console.log('In generateForAccount: '+rules.length);
     const results: Awaited<ReturnType<typeof this.generateForProduct>>[] = [];
 
     for (const rule of rules) {
-      console.log('Rule looping: '+rule.minReorderQty+' | '+rule.productId)
       const result = await this.generateForProduct(
         accountId,
         rule.productId,
         locationCode,
-        dryRun
+        dryRun,
       );
       results.push(result);
     }

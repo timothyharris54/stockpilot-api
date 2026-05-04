@@ -112,8 +112,8 @@ describe('ReplenishmentEngineService', () => {
 
     expect(result.calculation.shouldReorder).toBe(true);
     expect(result.calculation.reorderPoint).toBe(19);
-    expect(result.calculation.targetStock).toBe(60);
-    expect(result.calculation.recommendedQty).toBe(50);
+    expect(result.calculation.targetStock).toBe(65);
+    expect(result.calculation.recommendedQty).toBe(55);
 
     expect(prismaMock.reorderRecommendation.create).toHaveBeenCalled();
   });
@@ -142,32 +142,28 @@ describe('ReplenishmentEngineService', () => {
       qtyAvailable: 24,
     });
 
-    prismaMock.reorderRecommendation.create.mockResolvedValue({
-      id: 101n,
-      accountId: 1n,
-      productId: 2n,
-      locationCode: 'MAIN',
-      recommendedQty: '0.00',
-    });
-
     const result: Awaited<
       ReturnType<ReplenishmentEngineService['generateForProduct']>
     > = await service.generateForProduct(1n, 2n, 'MAIN');
 
     expect(result.calculation.shouldReorder).toBe(false);
     expect(result.calculation.reorderPoint).toBe(19);
-    expect(result.calculation.targetStock).toBe(60);
+    expect(result.calculation.targetStock).toBe(65);
     expect(result.calculation.rawRecommendedQty).toBe(0);
     expect(result.calculation.recommendedQty).toBe(0);
 
-    expect(prismaMock.reorderRecommendation.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(prismaMock.reorderRecommendation.updateMany).toHaveBeenCalledWith({
+      where: {
         accountId: 1n,
         productId: 2n,
         locationCode: 'MAIN',
-        recommendedQty: '0',
-      }) as Record<string, unknown>,
+        status: 'open',
+      },
+      data: {
+        status: 'superseded',
+      },
     });
+    expect(prismaMock.reorderRecommendation.create).not.toHaveBeenCalled();
   });
 
   it('applies minimum reorder quantity when computed qty is smaller', async () => {
@@ -208,13 +204,13 @@ describe('ReplenishmentEngineService', () => {
     // avgDailySales = 1
     // leadTimeDemand = 1 * 7 = 7
     // reorderPoint = 7 + 5 = 12
-    // targetStock = 1 * 30 = 30
-    // rawRecommendedQty = 30 - 24 = 6
+    // targetStock = (1 * 15) + 5 = 20
+    // rawRecommendedQty = 20 - 11 = 9
     // minReorderQty = 12 => recommendedQty should become 12
 
     expect(result.calculation.reorderPoint).toBe(12);
-    expect(result.calculation.targetStock).toBe(15);
-    expect(result.calculation.rawRecommendedQty).toBe(4);
+    expect(result.calculation.targetStock).toBe(20);
+    expect(result.calculation.rawRecommendedQty).toBe(9);
     expect(result.calculation.recommendedQty).toBe(12);
 
     expect(prismaMock.reorderRecommendation.create).toHaveBeenCalledWith({

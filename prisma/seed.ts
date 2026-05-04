@@ -17,6 +17,12 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const dec = (value: string | number) => new Prisma.Decimal(value);
+const daysAgoUtc = (daysAgo: number, hour = 12, minute = 0) => {
+  const date = new Date();
+  date.setUTCHours(hour, minute, 0, 0);
+  date.setUTCDate(date.getUTCDate() - daysAgo);
+  return date;
+};
 
 async function resetDemoData() {
   await prisma.location.deleteMany();
@@ -216,37 +222,37 @@ async function main() {
         accountId: account.id,
         productId: productBySku.get('WB-100')!.id,
         locationCode: 'MAIN',
-        qtyOnHand: dec('120'),
+        qtyOnHand: dec('20'),
         qtyReserved: dec('8'),
-        qtyIncoming: dec('24'),
-        qtyAvailable: dec('112'),
+        qtyIncoming: dec('0'),
+        qtyAvailable: dec('12'),
       },
       {
         accountId: account.id,
         productId: productBySku.get('WP-200')!.id,
         locationCode: 'MAIN',
-        qtyOnHand: dec('28'),
+        qtyOnHand: dec('12'),
         qtyReserved: dec('4'),
-        qtyIncoming: dec('18'),
-        qtyAvailable: dec('24'),
+        qtyIncoming: dec('0'),
+        qtyAvailable: dec('8'),
       },
       {
         accountId: account.id,
         productId: productBySku.get('GK-300')!.id,
         locationCode: 'MAIN',
-        qtyOnHand: dec('14'),
+        qtyOnHand: dec('7'),
         qtyReserved: dec('2'),
-        qtyIncoming: dec('15'),
-        qtyAvailable: dec('12'),
+        qtyIncoming: dec('0'),
+        qtyAvailable: dec('5'),
       },
       {
         accountId: account.id,
         productId: productBySku.get('AC-400')!.id,
         locationCode: 'MAIN',
-        qtyOnHand: dec('260'),
+        qtyOnHand: dec('36'),
         qtyReserved: dec('16'),
-        qtyIncoming: dec('50'),
-        qtyAvailable: dec('244'),
+        qtyIncoming: dec('0'),
+        qtyAvailable: dec('20'),
       },
     ],
   });
@@ -346,26 +352,26 @@ async function main() {
   });
 
   const salesDailyRows = [
-    ['WB-100', '2026-03-01', '6', '179.94'],
-    ['WB-100', '2026-03-05', '5', '149.95'],
-    ['WB-100', '2026-03-12', '7', '209.93'],
-    ['WB-100', '2026-03-20', '4', '119.96'],
-    ['WP-200', '2026-03-02', '2', '119.98'],
-    ['WP-200', '2026-03-09', '3', '179.97'],
-    ['WP-200', '2026-03-17', '4', '239.96'],
-    ['GK-300', '2026-03-03', '1', '89.99'],
-    ['GK-300', '2026-03-13', '2', '179.98'],
-    ['GK-300', '2026-03-21', '2', '179.98'],
-    ['AC-400', '2026-03-04', '8', '119.92'],
-    ['AC-400', '2026-03-14', '10', '149.90'],
-    ['AC-400', '2026-03-24', '6', '89.94'],
+    ['WB-100', 28, '6', '179.94'],
+    ['WB-100', 24, '5', '149.95'],
+    ['WB-100', 17, '7', '209.93'],
+    ['WB-100', 9, '4', '119.96'],
+    ['WP-200', 27, '2', '119.98'],
+    ['WP-200', 20, '3', '179.97'],
+    ['WP-200', 12, '4', '239.96'],
+    ['GK-300', 26, '1', '89.99'],
+    ['GK-300', 16, '2', '179.98'],
+    ['GK-300', 8, '2', '179.98'],
+    ['AC-400', 25, '8', '119.92'],
+    ['AC-400', 15, '10', '149.90'],
+    ['AC-400', 5, '6', '89.94'],
   ] as const;
 
   await prisma.salesDaily.createMany({
-    data: salesDailyRows.map(([sku, salesDate, unitsSold, revenue]) => ({
+    data: salesDailyRows.map(([sku, daysAgo, unitsSold, revenue]) => ({
       accountId: account.id,
       productId: productBySku.get(sku)!.id,
-      salesDate: new Date(`${salesDate}T00:00:00.000Z`),
+      salesDate: daysAgoUtc(daysAgo, 0),
       unitsSold: dec(unitsSold),
       revenue: dec(revenue),
     })),
@@ -378,7 +384,7 @@ async function main() {
         channel: 'shopify',
         channelOrderId: 'SP-1001',
         status: 'completed',
-        orderedAt: new Date('2026-03-22T14:15:00.000Z'),
+        orderedAt: daysAgoUtc(7, 14, 15),
         customerName: 'Alice Carter',
         customerEmail: 'alice@example.com',
         currencyCode: 'USD',
@@ -391,7 +397,7 @@ async function main() {
         channel: 'amazon',
         channelOrderId: 'AMZ-2048',
         status: 'processing',
-        orderedAt: new Date('2026-03-24T18:45:00.000Z'),
+        orderedAt: daysAgoUtc(5, 18, 45),
         customerName: 'Jordan Rivera',
         customerEmail: 'jordan@example.com',
         currencyCode: 'USD',
@@ -404,7 +410,7 @@ async function main() {
         channel: 'manual',
         channelOrderId: 'B2B-9001',
         status: 'completed',
-        orderedAt: new Date('2026-03-26T09:30:00.000Z'),
+        orderedAt: daysAgoUtc(3, 9, 30),
         customerName: 'Acme Retail',
         customerEmail: 'buyer@acme.example',
         currencyCode: 'USD',
@@ -527,31 +533,32 @@ async function main() {
   });
 
   const location = await prisma.location.createMany({
-    data: [{
-      accountId: account.id,
-      code: 'MAIN',
-      name: 'Daytona Beach Warehouse',
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      accountId: account.id,
-      code: 'ORL',
-      name: 'Orlando Fulfillment Center',
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      accountId: account.id,
-      code: 'TAM',
-      name: 'Tampa Fulfillment Center',
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-  ]
+    data: [
+      {
+        accountId: account.id,
+        code: 'MAIN',
+        name: 'Daytona Beach Warehouse',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        accountId: account.id,
+        code: 'ORL',
+        name: 'Orlando Fulfillment Center',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        accountId: account.id,
+        code: 'TAM',
+        name: 'Tampa Fulfillment Center',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ],
   });
 
   await prisma.receiptLine.createMany({

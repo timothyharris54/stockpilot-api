@@ -38,7 +38,7 @@ export class ProcurementController {
   ) {
     return this.conversionService.convertRecommendations({
       accountId: BigInt(identity.accountId),
-      recommendationIds: dto.recommendationIds,
+      recommendations: dto.recommendations,
     });
   }
 
@@ -49,7 +49,7 @@ export class ProcurementController {
   ) {
     return this.conversionService.previewRecommendations({
       accountId: BigInt(identity.accountId),
-      recommendationIds: dto.recommendationIds,
+      recommendations: dto.recommendations,
     });
   }
 

@@ -122,12 +122,24 @@ describe('RecommendationConversionService (integration)', () => {
 
     const firstResult = await service.convertRecommendations({
       accountId: account.id,
-      recommendationIds: [recommendation1.id.toString()],
+      recommendations: [
+        {
+          recommendationId: recommendation1.id.toString(),
+          vendorId: vendor.id.toString(),
+          quantity: '5',
+        },
+      ],
     });
 
     const secondResult = await service.convertRecommendations({
       accountId: account.id,
-      recommendationIds: [recommendation2.id.toString()],
+      recommendations: [
+        {
+          recommendationId: recommendation2.id.toString(),
+          vendorId: vendor.id.toString(),
+          quantity: '7',
+        },
+      ],
     });
 
     expect(firstResult.purchaseOrders).toHaveLength(1);
@@ -264,15 +276,32 @@ describe('RecommendationConversionService (integration)', () => {
 
     await service.convertRecommendations({
       accountId: accountA.id,
-      recommendationIds: [recommendationA.id.toString()],
+      recommendations: [
+        {
+          recommendationId: recommendationA.id.toString(),
+          vendorId: vendorA.id.toString(),
+          quantity: '4',
+        },
+      ],
     });
 
     await service.convertRecommendations({
       accountId: accountB.id,
-      recommendationIds: [recommendationB.id.toString()],
+      recommendations: [
+        {
+          recommendationId: recommendationB.id.toString(),
+          vendorId: vendorB.id.toString(),
+          quantity: '4',
+        },
+      ],
     });
 
     const purchaseOrders = await prisma.purchaseOrder.findMany({
+      where: {
+        accountId: {
+          in: [accountA.id, accountB.id],
+        },
+      },
       orderBy: [{ accountId: 'asc' }, { id: 'asc' }],
       select: {
         accountId: true,

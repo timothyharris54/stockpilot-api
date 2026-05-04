@@ -13,9 +13,21 @@ import { adjustToPurchasingConstraints } from '../utils/purchasing-quantity.util
 
 type ConvertibleRecommendationStatus = 'open' | 'reviewed';
 
+type ConvertRecommendationItemInput = {
+  recommendationId: string;
+  vendorId: string;
+  quantity: string;
+};
+
+type ParsedRecommendationItem = {
+  recommendationId: bigint;
+  vendorId: bigint;
+  quantity: Prisma.Decimal;
+};
+
 type ConvertRecommendationsInput = {
   accountId: bigint;
-  recommendationIds: string[];
+  recommendations: ConvertRecommendationItemInput[];
 };
 
 type RecommendationReader = PrismaService | Prisma.TransactionClient;
@@ -31,14 +43,12 @@ export class RecommendationConversionService {
     input: ConvertRecommendationsInput,
   ): Promise<ConversionSummary> {
     const accountId = input.accountId;
-    const recommendationIds = this.parseRecommendationIds(
-      input.recommendationIds,
+    const recommendationItems = this.parseRecommendationItems(
+      input.recommendations,
     );
 
-    if (recommendationIds.length === 0) {
-      throw new BadRequestException(
-        'At least one recommendationId is required.',
-      );
+    if (recommendationItems.length === 0) {
+      throw new BadRequestException('At least one recommendation is required.');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -46,7 +56,7 @@ export class RecommendationConversionService {
         await this.resolveRecommendationsForConversion(
           tx,
           accountId,
-          recommendationIds,
+          recommendationItems,
         );
 
       const groupedByVendor = this.groupByVendor(resolvedRecommendations);
@@ -84,18 +94,6 @@ export class RecommendationConversionService {
             },
           });
 
-          const vendorProduct = await tx.vendorProduct.findFirst({
-            where: {
-              accountId,
-              productId: item.productId,
-              isActive: true,
-              isPrimaryVendor: true,
-            },
-            include: {
-              vendor: true,
-            },
-          });
-
           const updateResult = await tx.reorderRecommendation.updateMany({
             where: {
               accountId,
@@ -108,8 +106,8 @@ export class RecommendationConversionService {
             },
             data: {
               status: RecommendationStatus.converted,
-              vendorId: vendorProduct?.vendorId,
-              vendorProductId: vendorProduct?.productId,
+              vendorId: item.vendorId,
+              vendorProductId: item.vendorProductId,
               purchaseOrderId: purchaseOrder.id,
               purchaseOrderLineId: purchaseOrderLine.id,
               finalQty: item.finalQty,
@@ -149,21 +147,19 @@ export class RecommendationConversionService {
   async previewRecommendations(
     input: ConvertRecommendationsInput,
   ): Promise<ConversionPreviewSummary> {
-    const recommendationIds = this.parseRecommendationIds(
-      input.recommendationIds,
+    const recommendationItems = this.parseRecommendationItems(
+      input.recommendations,
     );
 
-    if (recommendationIds.length === 0) {
-      throw new BadRequestException(
-        'At least one recommendationId is required.',
-      );
+    if (recommendationItems.length === 0) {
+      throw new BadRequestException('At least one recommendation is required.');
     }
 
     const resolvedRecommendations =
       await this.resolveRecommendationsForConversion(
         this.prisma,
         input.accountId,
-        recommendationIds,
+        recommendationItems,
       );
 
     const groupedByVendor = this.groupByVendor(resolvedRecommendations);
@@ -216,18 +212,57 @@ export class RecommendationConversionService {
   private async resolveRecommendationsForConversion(
     db: RecommendationReader,
     accountId: bigint,
-    recommendationIds: bigint[],
+    recommendationItems: ParsedRecommendationItem[],
   ): Promise<ResolvedRecommendation[]> {
+    const quantitiesByRecommendationId = new Map(
+      recommendationItems.map((item) => [
+        item.recommendationId.toString(),
+        item.quantity,
+      ]),
+    );
+    const vendorIdsByRecommendationId = new Map(
+      recommendationItems.map((item) => [
+        item.recommendationId.toString(),
+        item.vendorId,
+      ]),
+    );
+
     const recommendations = await this.findConvertibleRecommendations(
       db,
       accountId,
-      recommendationIds,
+      recommendationItems.map((item) => item.recommendationId),
     );
 
     return Promise.all(
-      recommendations.map((recommendation) =>
-        this.resolveRecommendationForConversion(db, accountId, recommendation),
-      ),
+      recommendations.map((recommendation) => {
+        const quantity = quantitiesByRecommendationId.get(
+          recommendation.id.toString(),
+        );
+
+        if (!quantity) {
+          throw new BadRequestException(
+            `Quantity was not provided for recommendation ${recommendation.id.toString()}.`,
+          );
+        }
+
+        const vendorId = vendorIdsByRecommendationId.get(
+          recommendation.id.toString(),
+        );
+
+        if (!vendorId) {
+          throw new BadRequestException(
+            `Vendor was not provided for recommendation ${recommendation.id.toString()}.`,
+          );
+        }
+
+        return this.resolveRecommendationForConversion(
+          db,
+          accountId,
+          recommendation,
+          vendorId,
+          quantity,
+        );
+      }),
     );
   }
 
@@ -239,11 +274,14 @@ export class RecommendationConversionService {
       productId: bigint;
       recommendedQty: Prisma.Decimal;
     },
+    vendorId: bigint,
+    quantity: Prisma.Decimal,
   ): Promise<ResolvedRecommendation> {
     const vendorProducts = await db.vendorProduct.findMany({
       where: {
         accountId,
         productId: recommendation.productId,
+        vendorId,
         isActive: true,
       },
       orderBy: [{ isPrimaryVendor: 'desc' }, { id: 'asc' }],
@@ -254,12 +292,12 @@ export class RecommendationConversionService {
 
     if (!selectedVendorProduct) {
       throw new BadRequestException(
-        `Unable to resolve a vendor product for recommendation ${recommendation.id.toString()} (product ${recommendation.productId.toString()}).`,
+        `Unable to resolve a vendor product for recommendation ${recommendation.id.toString()} (product ${recommendation.productId.toString()}, vendor ${vendorId.toString()}).`,
       );
     }
 
     const finalQty = adjustToPurchasingConstraints(
-      recommendation.recommendedQty,
+      quantity,
       selectedVendorProduct.minOrderQty,
       selectedVendorProduct.orderMultiple,
     );
@@ -281,16 +319,52 @@ export class RecommendationConversionService {
     };
   }
 
-  private parseRecommendationIds(ids: string[]): bigint[] {
-    const parsed = ids.map((id) => {
+  private parseRecommendationItems(
+    recommendations: ConvertRecommendationItemInput[],
+  ): ParsedRecommendationItem[] {
+    const parsed = recommendations.map((item) => {
+      let recommendationId: bigint;
+      let vendorId: bigint;
+      let quantity: Prisma.Decimal;
+
       try {
-        return BigInt(id);
+        recommendationId = BigInt(item.recommendationId);
       } catch {
-        throw new BadRequestException(`Invalid recommendationId: ${id}`);
+        throw new BadRequestException(
+          `Invalid recommendationId: ${item.recommendationId}`,
+        );
       }
+
+      try {
+        vendorId = BigInt(item.vendorId);
+      } catch {
+        throw new BadRequestException(`Invalid vendorId: ${item.vendorId}`);
+      }
+
+      try {
+        quantity = new Prisma.Decimal(item.quantity);
+      } catch {
+        throw new BadRequestException(
+          `Invalid quantity for recommendation ${item.recommendationId}: ${item.quantity}`,
+        );
+      }
+
+      if (quantity.lte(0)) {
+        throw new BadRequestException(
+          `Quantity must be greater than zero for recommendation ${item.recommendationId}.`,
+        );
+      }
+
+      return {
+        recommendationId,
+        vendorId,
+        quantity,
+      };
     });
 
-    const unique = new Set(parsed.map((id) => id.toString()));
+    const unique = new Set(
+      parsed.map((item) => item.recommendationId.toString()),
+    );
     if (unique.size !== parsed.length) {
       throw new BadRequestException(
         'Duplicate recommendationIds are not allowed.',

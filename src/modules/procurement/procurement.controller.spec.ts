@@ -95,7 +95,9 @@ describe('ProcurementController', () => {
       { id: 11n, accountId: 1n, status: 'submitted' },
     ];
 
-    procurementServiceMock.findAllPurchaseOrders.mockResolvedValue(purchaseOrders);
+    procurementServiceMock.findAllPurchaseOrders.mockResolvedValue(
+      purchaseOrders,
+    );
 
     const result = await controller.findAllPurchaseOrders(identity);
 
@@ -106,7 +108,7 @@ describe('ProcurementController', () => {
     expect(result).toEqual(purchaseOrders);
   });
 
-  it('calls convertRecommendations with accountId from identity and recommendationIds from dto', async () => {
+  it('calls convertRecommendations with accountId from identity and recommendations from dto', async () => {
     const convertResult = {
       createdPurchaseOrders: 1,
       convertedRecommendations: 2,
@@ -125,7 +127,12 @@ describe('ProcurementController', () => {
       convertResult,
     );
 
-    const dto = { recommendationIds: ['101', '102'] };
+    const dto = {
+      recommendations: [
+        { recommendationId: '101', vendorId: '501', quantity: '12' },
+        { recommendationId: '102', vendorId: '501', quantity: '24' },
+      ],
+    };
 
     const result = await controller.convertRecommendations(identity, dto);
 
@@ -133,13 +140,16 @@ describe('ProcurementController', () => {
       recommendationConversionServiceMock.convertRecommendations,
     ).toHaveBeenCalledWith({
       accountId: 1n,
-      recommendationIds: ['101', '102'],
+      recommendations: [
+        { recommendationId: '101', vendorId: '501', quantity: '12' },
+        { recommendationId: '102', vendorId: '501', quantity: '24' },
+      ],
     });
 
     expect(result).toEqual(convertResult);
   });
 
-  it('calls previewRecommendations with accountId from identity and recommendationIds from dto', async () => {
+  it('calls previewRecommendations with accountId from identity and recommendations from dto', async () => {
     const previewResult = {
       vendorGroups: [
         {
@@ -168,7 +178,11 @@ describe('ProcurementController', () => {
       previewResult,
     );
 
-    const dto = { recommendationIds: ['101'] };
+    const dto = {
+      recommendations: [
+        { recommendationId: '101', vendorId: '501', quantity: '12' },
+      ],
+    };
 
     const result = await controller.previewRecommendations(identity, dto);
 
@@ -176,7 +190,9 @@ describe('ProcurementController', () => {
       recommendationConversionServiceMock.previewRecommendations,
     ).toHaveBeenCalledWith({
       accountId: 1n,
-      recommendationIds: ['101'],
+      recommendations: [
+        { recommendationId: '101', vendorId: '501', quantity: '12' },
+      ],
     });
 
     expect(result).toEqual(previewResult);
@@ -304,5 +320,5 @@ describe('ProcurementController', () => {
     );
 
     expect(result).toEqual(receivedPurchaseOrder);
-  });  
+  });
 });

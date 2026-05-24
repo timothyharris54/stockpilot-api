@@ -10,9 +10,11 @@ import { VendorProductsModule } from './modules/vendor-products/vendor-products.
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { PlanningModule } from './modules/planning/planning.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [AuthModule,
+            UsersModule,
             PrismaModule, 
             ProductsModule, 
             InventoryModule, 

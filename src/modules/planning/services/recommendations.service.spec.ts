@@ -47,6 +47,28 @@ describe('RecommendationsService', () => {
         where: {
           accountId: 10n,
         },
+        include: {
+          product: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+            },
+          },
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          purchaseOrder: {
+            select: {
+              id: true,
+              poNumber: true,
+              status: true,
+            },
+          },
+        },
         orderBy: { id: 'asc' },
       });
 
@@ -68,6 +90,28 @@ describe('RecommendationsService', () => {
         where: {
           accountId: 10n,
           status: RecommendationStatus.open,
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+            },
+          },
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          purchaseOrder: {
+            select: {
+              id: true,
+              poNumber: true,
+              status: true,
+            },
+          },
         },
         orderBy: { id: 'asc' },
       });

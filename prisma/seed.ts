@@ -17,6 +17,13 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const dec = (value: string | number) => new Prisma.Decimal(value);
+const userRoles = [
+  { code: 'executive', displayName: 'Executive' },
+  { code: 'purchasing_manager', displayName: 'Purchasing Manager' },
+  { code: 'buyer', displayName: 'Buyer' },
+  { code: 'planner', displayName: 'Planner' },
+  { code: 'system_admin', displayName: 'System Admin' },
+] as const;
 const daysAgoUtc = (daysAgo: number, hour = 12, minute = 0) => {
   const date = new Date();
   date.setUTCHours(hour, minute, 0, 0);
@@ -41,12 +48,31 @@ async function resetDemoData() {
   await prisma.order.deleteMany();
   await prisma.planningSettings.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.userRole.deleteMany();
   await prisma.user.deleteMany();
   await prisma.account.deleteMany();
 }
 
 async function main() {
   await resetDemoData();
+
+  const roles = await Promise.all(
+    userRoles.map((role) =>
+      prisma.role.upsert({
+        where: {
+          code: role.code,
+        },
+        update: {
+          displayName: role.displayName,
+          isActive: true,
+        },
+        create: {
+          code: role.code,
+          displayName: role.displayName,
+        },
+      }),
+    ),
+  );
 
   const account = await prisma.account.create({
     data: {
@@ -60,6 +86,14 @@ async function main() {
       email: 'timothy.harris54@gmail.com',
       fullName: 'Timothy Harris',
     },
+  });
+
+  await prisma.userRole.createMany({
+    data: roles.map((role) => ({
+      accountId: account.id,
+      userId: user.id,
+      roleId: role.id,
+    })),
   });
 
   await prisma.planningSettings.create({

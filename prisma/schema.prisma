@@ -72,6 +72,14 @@ enum ReservationSourceType {
   manual
 }
 
+enum UserRoleCode {
+  executive
+  purchasing_manager
+  buyer
+  planner
+  system_admin
+}
+
 model Account {
   id                      BigInt   @id @default(autoincrement())
   name                    String
@@ -97,6 +105,7 @@ model Account {
   reorderRecommendations ReorderRecommendation[]
   planningSettings       PlanningSettings?
   locations              Location[]
+  userRoles              UserRole[]
 }
 
 model User {
@@ -108,9 +117,37 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account   Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userRoles UserRole[]
 
   @@unique([accountId, email])
+}
+
+model Role {
+  id          BigInt       @id @default(autoincrement())
+  code        UserRoleCode @unique
+  displayName String
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  userRoles UserRole[]
+}
+
+model UserRole {
+  id        BigInt   @id @default(autoincrement())
+  accountId BigInt
+  userId    BigInt
+  roleId    BigInt
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, userId, roleId])
+  @@index([accountId, roleId])
 }
 
 model Product {

@@ -1,3 +1,4 @@
+import { VendorProduct } from "../../vendor-products/dto/vendor-product.type";
 export type PurchaseOrderDetail = {
   id: string;
   accountId: string;
@@ -59,22 +60,6 @@ export type PurchaseOrderProduct = {
   status: string;
   isVariant: boolean;
   parentProductId: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type VendorProduct = {
-  id: string;
-  accountId: string;
-  vendorId: string;
-  productId: string;
-  vendorSku: string | null;
-  unitCost: string;
-  minOrderQty: string;
-  orderMultiple: string;
-  leadTimeDays: number | null;
-  isPrimaryVendor: boolean;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };

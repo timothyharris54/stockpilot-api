@@ -2,15 +2,11 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateVendorDto } from './dto/create-vendor.dto';
-import { CreateVendorProductDto } from './dto/create-vendor-product.dto';
+import { UpdateVendorDto } from './dto/update-vendor.dto';
 
 type VendorInput = {
   accountId: bigint,
   createVendorDto: CreateVendorDto
-}
-type VendorProductInput = {
-  accountId: bigint,
-  createVendorProductDto: CreateVendorProductDto
 }
 
 @Injectable()
@@ -21,7 +17,7 @@ export class VendorsService {
     const accountId = input.accountId;
     const dto = input.createVendorDto;
 
-    return this.prisma.vendor.create({  // Changed to lowercase
+    return this.prisma.vendor.create({  
       data: {
         accountId,
         name: dto.name,
@@ -38,7 +34,7 @@ export class VendorsService {
 
   async findAll(accountId: bigint) {
     
-    return this.prisma.vendor.findMany({  // Changed to lowercase
+    return this.prisma.vendor.findMany({  
       where: {
         accountId,
       },
@@ -48,95 +44,29 @@ export class VendorsService {
     });
   }
 
-  async createVendorProduct(input: VendorProductInput) {
-    const accountId = input.accountId;
-    const dto = input.createVendorProductDto;
-    const vendorId = BigInt(dto.vendorId);
-    const productId = BigInt(dto.productId);
+  async update(input: { accountId: bigint, id: bigint, updateVendorDto: UpdateVendorDto }) {
+    const { accountId, id, updateVendorDto } = input;
 
-    const [vendor, product] = await Promise.all([
-      this.prisma.vendor.findFirst({  // Changed to lowercase
-        where: {
-          id: vendorId,
-          accountId,
-        },
-      }),
-      this.prisma.product.findFirst({  // Changed to lowercase
-        where: {
-          id: productId,
-          accountId,
-        },
-      }),
-    ]);
-
-    if (!vendor) {
+    // Check if the vendor exists and belongs to the account
+    const existingVendor = await this.prisma.vendor.findFirst({
+      where: {
+        id,
+        accountId,
+      },
+    }); // Changed to lowercase 
+    if (!existingVendor) {
       throw new NotFoundException('Vendor not found');
     }
 
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
-    if (dto.isPrimaryVendor) {
-      await this.prisma.vendorProduct.updateMany({  // Changed to lowercase
-        where: {
-          accountId,
-          productId,
-          isPrimaryVendor: true,
-        },
-        data: {
-          isPrimaryVendor: false,
-        },
-      });
-    }
-
-    try {
-      return await this.prisma.vendorProduct.create({  // Changed to lowercase
-        data: {
-          accountId,
-          vendorId,
-          productId,
-          vendorSku: dto.vendorSku,
-          unitCost: dto.unitCost ? new Prisma.Decimal(dto.unitCost) : undefined,
-          minOrderQty: dto.minOrderQty
-            ? new Prisma.Decimal(dto.minOrderQty)
-            : new Prisma.Decimal(0),
-          orderMultiple: dto.orderMultiple
-            ? new Prisma.Decimal(dto.orderMultiple)
-            : new Prisma.Decimal(1),
-          leadTimeDays: dto.leadTimeDays,
-          isPrimaryVendor: dto.isPrimaryVendor ?? false,
-          isActive: dto.isActive ?? true,
-        },
-        include: {
-          vendor: true,
-          product: true,
-        },
-      });
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new BadRequestException(
-          'This vendor/product mapping already exists for the account',
-        );
-      }
-      throw error;
-    }
-  }
-
-  async findAllVendorProducts(accountId: bigint) {
-
-    return this.prisma.vendorProduct.findMany({  // Changed to lowercase
+    return this.prisma.vendor.update({
       where: {
+        id,
         accountId,
       },
-      include: {
-        vendor: true,
-        product: true,
+      data: {
+        ...updateVendorDto,
       },
-      orderBy: [{ vendorId: 'asc' }, { productId: 'asc' }],
-    });
+    }); 
   }
+
 }

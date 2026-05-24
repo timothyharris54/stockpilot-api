@@ -11,6 +11,7 @@ export class AuthTokenService {
       sub: identity.userId.toString(),
       accountId: identity.accountId.toString(),
       email: identity.email,
+      roleCode: identity.roleCode,
     });
   }
 }

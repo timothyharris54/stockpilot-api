@@ -8,6 +8,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  Matches,
 } from 'class-validator';
 
 export class CreateVendorProductDto {
@@ -30,6 +31,7 @@ export class CreateVendorProductDto {
 
   @IsOptional()
   @IsNumberString()
+  @Matches(/^\d+(\.\d{1,4})?$/)
   minOrderQty?: string;
 
   @IsOptional()

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { UserRoleCode } from '@prisma/client';
 import { ReplenishmentController } from './replenishment.controller';
 import { ReplenishmentEngineService } from '../services/replenishment-engine.service';
 import { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
@@ -15,6 +16,7 @@ describe('ReplenishmentController', () => {
     userId: 10n,
     accountId: 1n,
     email: 'timothy.harris54@gmail.com',
+    roleCode: UserRoleCode.planner,
   };
 
   beforeEach(async () => {

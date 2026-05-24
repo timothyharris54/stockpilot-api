@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { UserRoleCode } from '@prisma/client';
 import { ProcurementService } from './procurement.service';
 import { ProcurementController } from './procurement.controller';
 import { RecommendationConversionService } from 'src/modules/procurement/services/recommendation-conversion.service';
@@ -13,6 +14,7 @@ describe('ProcurementController', () => {
     userId: 10n,
     accountId: 1n,
     email: 'test@example.com',
+    roleCode: UserRoleCode.buyer,
   };
 
   const procurementServiceMock = {

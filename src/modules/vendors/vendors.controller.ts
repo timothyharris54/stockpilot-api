@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Param, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { VendorsService } from 'src/modules/vendors/vendors.service';
 import { CreateVendorDto } from 'src/modules/vendors/dto/create-vendor.dto';
-import { CreateVendorProductDto } from 'src/modules/vendors/dto/create-vendor-product.dto';
+import { UpdateVendorDto } from 'src/modules/vendors/dto/update-vendor.dto';
 import { CurrentIdentity } from 'src/modules/auth/decorators/current-identity.decorator';
 import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -10,10 +10,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('vendors')
 @ApiTags('Vendors')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 export class VendorsController {
   constructor(private readonly vendorsService: VendorsService) {}
 
-@UseGuards(JwtAuthGuard)
 @Post('vendor')
     async create(
         @CurrentIdentity() identity: RequestIdentity,
@@ -25,7 +25,6 @@ export class VendorsController {
         });
     }   
 
-@UseGuards(JwtAuthGuard)
 @Get('allVendors')
     findAll(
         @CurrentIdentity() identity: RequestIdentity,
@@ -33,23 +32,17 @@ export class VendorsController {
         return this.vendorsService.findAll(BigInt(identity.accountId));
     }
 
-@UseGuards(JwtAuthGuard)
-@Post('vendor-product')
-    createVendorProduct(
+@Patch('vendor/:id')
+    async update(
         @CurrentIdentity() identity: RequestIdentity,
-        @Body() createVendorProductDto: CreateVendorProductDto
+        @Param('id') id: string,
+        @Body() updateVendorDto: UpdateVendorDto
     ) {
-        return this.vendorsService.createVendorProduct({
+        return this.vendorsService.update({
             accountId: BigInt(identity.accountId),
-            createVendorProductDto,
+            id: BigInt(id),
+            updateVendorDto,
         });
     }
 
-@UseGuards(JwtAuthGuard)
-@Get('vendor-products')
-    findVendorProducts(
-        @CurrentIdentity() identity: RequestIdentity,
-    ) {
-        return this.vendorsService.findAllVendorProducts(BigInt(identity.accountId));    
-    }
 }

@@ -7,6 +7,7 @@ import { AuthService } from 'src/modules/auth/auth.service';
 import { IdentityMapperService } from 'src/modules/auth/services/indentity-mapper.service';
 import { AuthTokenService } from 'src/modules/auth/services/auth-token.service';
 import { JwtStrategy } from 'src/modules/auth/strategies/jwt.strategy';
+import { RolesGuard } from './guards/roles.guard';
 
 @Module({
   imports: [
@@ -23,7 +24,15 @@ import { JwtStrategy } from 'src/modules/auth/strategies/jwt.strategy';
     IdentityMapperService,
     AuthTokenService,
     JwtStrategy,
+    RolesGuard,
   ],
-  exports: [AuthService, IdentityMapperService, AuthTokenService, PassportModule, JwtModule],
+  exports: [
+    AuthService,
+    IdentityMapperService,
+    AuthTokenService,
+    RolesGuard,
+    PassportModule,
+    JwtModule,
+  ],
 })
 export class AuthModule {}

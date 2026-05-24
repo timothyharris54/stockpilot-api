@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { UserRoleCode } from '@prisma/client';
 import type { RequestIdentity } from 'src/modules/auth/interfaces/request-identity.interface';
 import { VendorProductsController } from './vendor-products.controller';
 import { VendorProductsService } from './vendor-products.service';
@@ -10,6 +11,7 @@ describe('VendorProductsController', () => {
     userId: 10n,
     accountId: 1n,
     email: 'test@example.com',
+    roleCode: UserRoleCode.buyer,
   };
 
   const vendorProductsServiceMock = {

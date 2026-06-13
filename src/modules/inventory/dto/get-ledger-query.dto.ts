@@ -1,4 +1,11 @@
-import { IsISO8601, IsOptional, IsString, IsInt, Min, IsEnum } from 'class-validator';
+import {
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { InventoryEventType } from '@prisma/client';
 

@@ -3,9 +3,9 @@ export function buildPasswordResetEmail(input: {
   expiresInMinutes: number;
 }) {
   const escapedResetUrl = escapeHtml(input.resetUrl);
-  const subject = 'Reset your StockPilot password';
+  const subject = 'Reset your NVentory Boss password';
   const text = [
-    'We received a request to reset your StockPilot password.',
+    'We received a request to reset your NVentory Boss password.',
     '',
     `Use this link within ${input.expiresInMinutes} minutes:`,
     input.resetUrl,
@@ -14,7 +14,7 @@ export function buildPasswordResetEmail(input: {
   ].join('\n');
 
   const html = [
-    '<p>We received a request to reset your StockPilot password.</p>',
+    '<p>We received a request to reset your NVentory Boss password.</p>',
     `<p><a href="${escapedResetUrl}">Reset your password</a></p>`,
     `<p>This link expires in ${input.expiresInMinutes} minutes.</p>`,
     '<p>If you did not request a password reset, you can ignore this email.</p>',

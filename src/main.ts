@@ -44,7 +44,7 @@ async function bootstrap() {
     .setDescription(
       'Minimal OpenAPI documentation for frontend route discovery.',
     )
-    .setVersion('0.1.5')
+    .setVersion('0.1.6')
     .addBearerAuth()
     .build();
 
